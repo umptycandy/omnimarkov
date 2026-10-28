@@ -336,6 +336,35 @@ int main(void)
         check("SEQ off: the chord it held lets go", om_chord_level < 0.9f);
         run(2);
     }
+    {   /* the kits: each plays the rhythm's drums, finite, within a few dB of the samples, and goes quiet */
+        double ref = 0.0;
+        int k;
+        for (k = 0; k < 3; k++) {
+            double e = 0.0;
+            int b, i, quiet = 1;
+            char what[80];
+            om_init();
+            om_set(P_KIT, k);
+            om_set(P_TEMPO, 120);
+            om_set(P_REVERB, 0);
+            om_play(1);
+            finite_ok = 1;
+            for (b = 0; b < 4 * 44100 / 256; b++) {
+                run(1);
+                for (i = 0; i < 512; i++)
+                    e += (double)buf[i] * (double)buf[i];
+            }
+            if (!k)
+                ref = e;
+            om_play(0);
+            run(44100 / 256 * 3);
+            run(1);
+            for (i = 0; i < 512; i++)
+                quiet &= buf[i] == 0;
+            snprintf(what, sizeof what, "kit %s: drums, finite, level within 3 dB, quiet after", OM_KIT_NAME[k]);
+            check(what, e > 0.0 && finite_ok && e < ref * 2.0 && e > ref * 0.5 && quiet);
+        }
+    }
     check("no bass, ever: nothing on channel 3", bass_on_n == 0 && chord_on_n > 10);
     check("MIDI out sent notes", midi_n > 100);
     om_set(P_MIDI, 0);

@@ -12,6 +12,7 @@
 #include "omni.h"
 #include "fastmath.h"
 #include "models.h"
+#include "drumsynth.h"
 #include "om_data.h"
 #include "om_drums.h"
 #define BARRIER() __asm__ volatile("" ::: "memory")
@@ -22,6 +23,7 @@ const char *const OM_NOTE_NAME[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G",
 const int8_t OM_TYPE_TONES[CH_NTYPES][3] = {
     {0, 4, 7}, {0, 3, 7}, {0, 4, 10}, {0, 4, 11}, {0, 3, 10}, {0, 3, 6}, {0, 4, 8}, {0, 5, 7}, {0, 4, 2}};
 const char *const OM_MODEL_NAME[OM_NMODELS] = {"OM-84", "String", "Modal", "Analog", "FM", "Fold"};
+const char *const OM_KIT_NAME[KIT_N] = {"OM-84", "808", "Chip"};
 
 static const om_param_t PARAMS[P_NPARAMS] = {
     {"Voice 1", 0, 100, 80}, {"Voice 2", 0, 100, 45}, {"Sustain", 0, 100, 50}, {"Chord", 0, 100, 60},
@@ -32,6 +34,7 @@ static const om_param_t PARAMS[P_NPARAMS] = {
     {"Chord", 0, OM_NMODELS - 1, M_MODAL}, {"Tone", 0, 100, 50}, {"Color", 0, 100, 25}, {"Release", 0, 100, 40},
     {"Bars", 0, 3, 1},
     {"Velocity", 1, 100, 80}, {"Position", 0, 100, 10}, {"LPG color", 0, 100, 50},
+    {"Kit", 0, KIT_N - 1, KIT_OM84},
 };
 
 const om_rhythm_t *om_rhythm(int i) { return &OM_RHYTHM[(unsigned)i < OM_NRHYTHM ? i : 0]; }
@@ -71,6 +74,8 @@ void om_param_text(int i, int v, char *b)
         s = OM_RHYTHM[v < 0 ? 0 : v % OM_NRHYTHM].name;
     else if (i == P_MIDI)
         s = ONOFF[v ? 1 : 0];
+    else if (i == P_KIT)
+        s = OM_KIT_NAME[(unsigned)v < KIT_N ? v : 0];
     else if (i == P_HMODEL || i == P_CMODEL)
         s = OM_MODEL_NAME[(unsigned)v < OM_NMODELS ? v : 0];
     else if (i == P_BARS)
@@ -554,6 +559,7 @@ typedef struct {
     uint8_t on;
 } drum_t;
 static drum_t drum[OM_NDRUM];
+static ds_t dsyn[OM_NDRUM];                       /* the synthesized kits' voices (dsp/drumsynth.h) */
 static int rh, rh_next, step;
 static float pulse_left, step_len;
 static uint32_t ext_age;                         /* render calls since the last clock tick */
@@ -566,8 +572,12 @@ static void drums_hit(uint8_t d)
     int i;
     for (i = 0; i < OM_NDRUM; i++)
         if (d >> i & 1u) {
-            drum[i].pos = 0;
-            drum[i].on = 1;
+            if (par[P_KIT] != KIT_OM84) {
+                ds_hit(&dsyn[i], i);
+            } else {
+                drum[i].pos = 0;
+                drum[i].on = 1;
+            }
             midi(0x99, GM_DRUM[i], 100);
             midi(0x89, GM_DRUM[i], 0);
         }
@@ -808,7 +818,7 @@ static void quiet(void)
     for (i = 0; i < OM_NCHORD; i++)
         chv[i].st = E_OFF;
     for (i = 0; i < OM_NDRUM; i++)
-        drum[i].on = 0;
+        drum[i].on = dsyn[i].on = 0;
     for (i = 0; i < 3; i++)
         om_midi_out(0xB0 | (uint32_t)i, 123, 0);
 }
@@ -1203,6 +1213,9 @@ static void render_chord(uint32_t n)
     om_chord_level = lvl;
 }
 
+/* the synthesized kits' level against the samples' (measured: a bar of Rock 1) */
+static const float G_KIT[KIT_N] = {1.0f, 0.4f, 0.5f};
+
 static void render_drums(uint32_t n)
 {
     int i;
@@ -1221,6 +1234,17 @@ static void render_drums(uint32_t n)
                 break;
             }
             o = (float)w[d->pos++] * g;
+            mixl[j] += o;
+            mixr[j] += o;
+        }
+    }
+    for (i = 0; i < OM_NDRUM; i++) {               /* the 808's and the chip's */
+        ds_t *d = &dsyn[i];
+        const float gs = rvol * 0.7071f * G_KIT[par[P_KIT]];
+        if (!d->on)
+            continue;
+        for (j = 0; j < n && d->on; j++) {
+            float o = ds_sample(d, par[P_KIT], i) * gs;
             mixl[j] += o;
             mixr[j] += o;
         }

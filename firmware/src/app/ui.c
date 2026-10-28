@@ -22,7 +22,7 @@ static const char *const VIEW_NAME[NVIEWS] = {"Play", "Mix", "Rhythm", "Chords",
 enum { K_PADROOT = 100, K_PADTYPE, K_LEDS, K_SYNC, K_NONE };
 static const uint8_t VIEW_KNOB[NVIEWS][4] = {
     {P_HMODEL, P_HTIMBRE, P_HCOLOR, P_SUSTAIN},
-    {P_HLEVEL, P_CHORD, P_RHYVOL, K_NONE},
+    {P_HLEVEL, P_CHORD, P_RHYVOL, P_KIT},
     {P_RHYTHM, P_TEMPO, P_BARS, P_SWING},
     {K_PADROOT, K_PADTYPE, P_TRANSPOSE, P_OCTAVE},
     {P_REVERB, P_SPACE, P_WIDTH, P_CREV},

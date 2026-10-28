@@ -10,8 +10,8 @@
 #define OM_VERSION "DEV"
 #endif
 #define PROJ_MAGIC 0x494E4D4Fu           /* "OMNI" */
-#define PROJ_FORMAT 6u                   /* 6: the voices, the tracks, the chord loop, SHIFT (0.3); 1 and 2 load
-                                          * (3 to 5 were development formats: their projects start afresh) */
+#define PROJ_FORMAT 7u                   /* 7: the voices, the tracks, the chord loop, SHIFT, the kits (0.3); 1 and 2
+                                          * load (3 to 6 were development formats: their projects start afresh) */
 #define NPADS OM_NPADS                   /* the black keys: chord buttons */
 
 typedef struct {

@@ -99,3 +99,18 @@ expect chord_level >50
 key b2 up
 wait 50
 shot voices.png
+# the drum kits: Mix page (HOME twice), KNOB 4: the OM-84's samples, the 808, the chip
+tap HOME
+tap HOME
+expect view 1
+spin K4 1
+expect par28 1
+tap PLAY
+wait 1500
+shot kit808.png
+spin K4 1
+expect par28 2
+wait 1500
+tap PLAY
+wait 20
+expect playing 0

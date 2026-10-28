@@ -14,6 +14,7 @@ This version adds:
 - **Two tracks.** The drums and the sequence (the chords held in time) start and stop separately.
 - **Loops.** A chord-progression loop recorder.
 - **A cyberpunk screen:** neon magenta, cyan and yellow on near-black, with scanlines.
+- **Drum kits:** the OM-84's samples, an 808 and a chip-tune kit, synthesized.
 
 [![FoMni running on the FM-1 (watch on YouTube)](https://img.youtube.com/vi/pahaM6nzucE/maxresdefault.jpg)](https://www.youtube.com/watch?v=pahaM6nzucE)
 
@@ -50,7 +51,7 @@ Each page puts four values on KNOB 1–4. Each page button has two pages: press 
 EDIT steps through all eight.
 
 - **HOME: Play.** The harp's voice (Model), its two knobs (named for the voice), Sustain.
-  **HOME again: Mix.** Harp, Chord and Drums levels.
+  **HOME again: Mix.** Harp, Chord and Drums levels, and Kit: the drums' sound (OM-84, the original samples; 808, synthesized like a TR-808; Chip, 8-bit console drums).
 - **GLO: Rhythm.** Rhythm (the drums), Tempo, Bars (a loop's length: 1, 2, 4 or 8), Swing.
   **GLO again: Setup.** Tune, MIDI out, Lights (On: the key lights, and the unlit buttons glow dimly so they can be read; Keys: the key lights only; Off), Sync start (PLAY and SEQ wait for your first chord).
 - **FX: Sound.** Reverb (the strings' send), Space (the plate's size), Width, Chord rev (the chord's send). The drums stay dry.

@@ -7,7 +7,8 @@
  *           Two voices, as the OM-84's: VOICE 1 shimmers (its tremolo), VOICE 2 is plain.
  *   CHORD   the chord itself (3 notes, F#3..F4), held: while a chord pad is down, or while the
  *           sequence holds it (a loop). No bass, no melody: the chord, held.
- *   RHYTHM  ten OM-84 rhythms' drums: bass drum, claves, hi-hat, cymbal, snare.
+ *   RHYTHM  ten OM-84 rhythms' drums: bass drum, claves, hi-hat, cymbal, snare; three kits play them
+ *           (the OM-84's samples, an 808 and a chip's, dsp/drumsynth.h).
  *
  * The harp and the chord each play one of six voices (dsp/models.h): the OM-84's own, or Rings' and
  * Plaits' string, modal resonator, virtual analog, FM and wavefolder. The harp's are a pool of up to
@@ -54,10 +55,14 @@ enum {
     P_BARS,                                           /* a loop's length (1, 2, 4, 8 bars) */
     /* the SHIFT layer (ENV held): */
     P_HVEL, P_HPOS, P_LPGC,                           /* the harp's velocity, strike position (Modal), the LPG's colour */
+    P_KIT,                                            /* the drums: the OM-84's samples, an 808, a chip (dsp/drumsynth.h) */
     P_NPARAMS
 };
 /* the voices (dsp/models.h): their names, and the names of their two knobs */
 enum { M_OM84, M_STRING, M_MODAL, M_ANALOG, M_FM, M_FOLD, OM_NMODELS };
+/* the drum kits (P_KIT): the OM-84's samples, an 808, a chip's (dsp/drumsynth.h) */
+enum { KIT_OM84, KIT_808, KIT_CHIP, KIT_N };
+extern const char *const OM_KIT_NAME[KIT_N];
 extern const char *const OM_MODEL_NAME[OM_NMODELS];   /* "OM-84", "String", "Modal", "Analog", "FM", "Fold" */
 const char *om_model_knob(int model, int which);        /* which 0: TIMBRE, 1: COLOR ("Bright", "Structure"...) */
 typedef struct {
