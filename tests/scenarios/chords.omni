@@ -1,23 +1,20 @@
-# chord buttons, the OM rows (ENV minor, LFO 7th, both m7), CHORD HOLD, SYNC START, saving
+# chord buttons, LFO for the 7th, SHIFT (ENV), CHORD HOLD, SYNC START, saving
 wait 200
-# F (button 0), then ENV held: F minor; LFO: F7; both: Fm7
+# F (button 0); LFO held: F7
 tapkey b0
 expect root 5
 expect type 0
-press ENV
-tapkey b0
-release ENV
-expect type 1
 press LFO
 tapkey b0
 release LFO
 expect type 2
+# SHIFT (ENV) and a black key: the button picked for the Chords page, nothing played (still F7)
 press ENV
-press LFO
-tapkey b0
-release LFO
+tapkey b4
 release ENV
-expect type 4
+expect root 5
+expect type 2
+expect pad -1
 # a modifier used with a chord does not open its page
 expect view 0
 # the strings follow the chord: F7 is F A Eb, F3 A3 Eb3 on strings 0..2 (Eb folded up to F#2..F3)
@@ -107,3 +104,27 @@ expect par16 1
 expect padroot0 2
 expect padtype0 1
 expect hold 1
+# SHIFT's layer: the Play page's knobs become Velocity, Position, LPG color while ENV is held
+press ENV
+spin K1 -30
+release ENV
+expect par30 50
+spin K1 1
+expect par16 2
+# SHIFT + PLAY: both tracks at once; SHIFT + SEQ: from the top
+press ENV
+tap PLAY
+release ENV
+expect drums 1
+expect seq 1
+wait 1000
+press ENV
+tap SEQ
+release ENV
+wait 20
+expect step <2
+press ENV
+tap PLAY
+release ENV
+wait 20
+expect playing 0

@@ -30,18 +30,29 @@ said Transpose +1
 turn PRESET -1
 wait 300
 said Transpose 0
-# a chord button: its chord, at once (ENV held: the minor)
+# a chord button: its chord, at once (LFO held: the 7th)
 key b1 down
 wait 50
 said C major
 key b1 up
-press ENV
+press LFO
 key b2 down
 wait 50
-said G minor
+said G 7
 key b2 up
-release ENV
+release LFO
 wait 100
+# SHIFT held: the page's second layer is said
+tap HOME
+wait 300
+press ENV
+wait 300
+said Play page, shift: Velocity 80, Position 10, LPG color 50
+release ENV
+wait 300
+tap GLO
+tap GLO
+wait 300
 # the tracks
 tap PLAY
 wait 50

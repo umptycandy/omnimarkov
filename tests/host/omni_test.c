@@ -108,6 +108,24 @@ int main(void)
             }
         }
         check("Rock 1 at 120: 32 steps (+-1) in 4 s", n >= 31 && n <= 33);
+        {   /* swing 50%: the even steps half as long again, the odd ones half; a pair as long as before */
+            int t0 = 0, t1 = 0, t2 = 0, k;
+            om_set(P_SWING, 50);
+            last = om_step;
+            for (k = 0; k < 4000 && om_step == last; k++)
+                run(1);
+            last = om_step;
+            for (k = 0; k < 4000 && om_step == last; k++, t0++)
+                run(1);
+            last = om_step;
+            for (k = 0; k < 4000 && om_step == last; k++, t1++)
+                run(1);
+            last = om_step;
+            for (k = 0; k < 4000 && om_step == last; k++, t2++)
+                run(1);
+            check("swing 50: steps alternate long and short", (t0 > 2 * t1 && t2 > 2 * t1) || (t1 > 2 * t0 && t1 > 2 * t2));
+            om_set(P_SWING, 0);
+        }
         om_play(0);
         run(2);
         check("stop", !om_playing);
@@ -261,7 +279,29 @@ int main(void)
         for (b = 0; b < 44100 / 256 && last_bass < 0; b++)
             run(1);
         check("a D held over the loop: its bass moves to D", last_bass >= 0 && last_bass % 12 == 2);
+        om_rec(OM_REC_OVERDUB);                         /* overdub, D held for a whole pass: the loop is in D */
+        run(2);
+        check("OVERDUB: recording over the loop playing", om_rec_state == 3);
+        for (b = 0; b < 3 * 44100 / 256 && om_rec_state; b++)
+            run(1);
+        check("... once round, then it plays", om_rec_state == 0 && ll == 16 && om_bsrc == SRC_LOOP);
         om_gate(0);
+        {
+            int all_d = 1, n = 0;
+            for (b = 0; b < 2 * 44100 / 256; b++) {
+                int lb = last_bass;
+                run(1);
+                all_d &= om_root == 2;
+                if (last_bass != lb && (om_loop_pos <= 1 || (om_loop_pos >= 6 && om_loop_pos <= 7))) {
+                    n++;
+                    all_d &= last_bass % 12 == 2;
+                }
+            }
+            check("... no button held: the loop is in D now, chord and bass", n > 0 && all_d);
+        }
+        om_restart();
+        run(1);
+        check("restart: the top of the loop", om_loop_pos <= 1);
         om_rec(OM_REC_CLEAR);
         run(2);
         check("REC held (clear): no loop, the source back to RHYTHM", ll == 0 && om_bsrc == SRC_RHYTHM);
@@ -305,6 +345,17 @@ int main(void)
         check("CHANGES every bar, no button held: the chord changes", changes >= 6 && om_gen);
         check("... the Markov bass plays", bass_on_n > 10);
         check("... the arp plucks the strings", plucks > 100);
+        om_set(P_ARPRANGE, 4);                          /* the arp's span: the middle four strings */
+        om_set(P_HMODEL, M_ANALOG);
+        run(44100 / 256 * 2);
+        plucks = 0;
+        for (b = 0; b < 2 * 44100 / 256; b++) {
+            run(1);
+            for (s = 0; s < OM_NSTR; s++)
+                if (om_str_level[s] > 0.9f && (s < 6 || s > 9))
+                    plucks++;
+        }
+        check("Arp range 4: only strings 6..9 plucked", plucks == 0);
         om_seq(0);
         run(2);
         check("SEQ off: Markov stops", om_gen_pad < 0 && !om_gen);

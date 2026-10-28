@@ -152,6 +152,7 @@ static const float MV_RATIO[23] = {0.5f, 0.5047f, 0.7071f, 0.7854f, 1.0f, 1.0093
 /* what a voice plays: f0 (cycles a sample), the knobs 0..1, the strike's accent 0..1 */
 typedef struct {
     float f0, timbre, color, decay, accent;
+    float pos, lpgc;                   /* the modal strike's position (Rings' POSITION), the LPG's colour */
 } mv_par_t;
 
 typedef struct {
@@ -267,7 +268,7 @@ static void mv_coef(mv_t *v, int sustain, int modes)
     case M_MODAL: {
         float range = sustain ? 36.0f : 60.0f, f = sustain ? 4.0f : 2.0f;
         svf_set(&v->exc, fm_minf(f * p->f0 * mv_semi((b * (2.0f - b) - 0.5f) * range), 0.499f), sustain ? 0.7f : 1.5f);
-        modal_coef(v, p->color, b, d, 0.015f, modes);
+        modal_coef(v, p->color, b, d, p->pos, modes);
         break;
     }
     case M_STRING:
@@ -337,7 +338,7 @@ static void mv_strike(mv_t *v)
  * gate < 0: a ping (a pluck); else the vactrol follows gate (a held note) */
 static void lpg_step(mv_t *v, float gate)
 {
-    const float bs = (float)MV_BS / 44100.0f, hf = 0.5f;
+    const float bs = (float)MV_BS / 44100.0f, hf = v->p.lpgc;
     float sd = 200.0f * bs * mv_semi(-96.0f * v->p.decay), tail = 20.0f * bs * mv_semi(-72.0f * v->p.decay + 12.0f * hf) - sd;
     float in, err, s2, s4, coef;
     if (gate < 0.0f) {

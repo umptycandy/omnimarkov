@@ -77,6 +77,27 @@ a { color: var(--accent); }
 .help p, .help ul { margin: 0; max-width: 60ch; }
 .help ul { padding-left: 1.1rem; }
 kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0 .3em; color: var(--ink); }
+/* a phone held upright (body.tall, set by fit()): the panel in the top part of the screen, the keys across the whole
+   width of the rest, nothing scrolls; the help and settings open over it as a sheet (the ? on the panel) */
+.kbdbox, .helpbtn, .sheet-close { display: none; }
+body.tall { position: fixed; inset: 0; overflow: hidden; padding: 0; background: #1b1d20; }
+body.tall > header, body.tall .turn { display: none; }
+body.short { padding-block: 8px 32px; }
+body.short > header { display: none; }
+body.short .device { margin: 0 auto; }
+body.tall .devicebox { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; display: flex; justify-content: center; overflow: visible; }
+body.tall .device { min-width: 0; aspect-ratio: auto; }
+body.tall .start { border-radius: 0 0 24px 24px; }
+body.tall .kbdbox { display: block; position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom, 0px); }
+.kbdbox svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+body.tall .helpbtn { display: block; position: absolute; width: 6%; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0;
+                     background: #2e3135; color: #e8e8ea; font: 700 1rem "Barlow Semi Condensed", "Barlow", sans-serif; cursor: pointer; }
+body.tall .sheet { display: none; }
+body.tall.helpopen .sheet { display: block; position: fixed; inset: 0; z-index: 20; overflow: auto; background: var(--ground); color: var(--ink);
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+body.tall.helpopen .sheet-close { display: inline-block; font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--muted);
+  border-radius: 8px; padding: .3em .9em; min-height: 2.4em; cursor: pointer; margin: 0 0 .6rem; }
 </style>
 </head>
 <body>
@@ -87,19 +108,25 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 </header>
 <main>
 <h2 class="sr">The FM-1</h2>
-<p class="turn">Turn your phone sideways for bigger controls.</p>
 <div class="devicebox">
 <div class="device" id="device">
   <svg id="panel" viewBox="0 0 1000 640" aria-hidden="true" focusable="false"></svg>
   <canvas id="screen" width="240" height="240" role="img" aria-label="The FM-1's screen. Its words are read out: see Speak the screen, below the panel"></canvas>
   <div id="controls" role="group" aria-label="The FM-1's panel" aria-describedby="panel-keys" inert></div>
+  <button type="button" class="helpbtn" id="helpbtn" aria-label="Help and settings">?</button>
   <div class="start" id="start"><button type="button" id="go">Switch on</button></div>
 </div>
+</div>
+<div class="kbdbox" id="kbdbox">
+  <svg id="keysvg" aria-hidden="true" focusable="false"></svg>
+  <div id="kcontrols" role="group" aria-label="The FM-1's keys" inert></div>
 </div>
 <p id="panel-keys" class="sr">Tab moves through the knobs, the buttons, the chord keys and the strum keys. Arrow keys turn a knob,
   Page Up and Page Down faster. Space or Enter holds a button or key down while you hold it; Shift and Enter keeps a button down
   until you press it again.</p>
 
+<div class="sheet" id="sheet">
+<button type="button" class="sheet-close" id="sheet-close">Back to the FM-1</button>
 <div class="bar">
   <span id="status" role="status">Off. Sound starts when you switch it on.</span>
   <span id="alert" role="alert"></span>
@@ -137,7 +164,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
     <h2>Buttons</h2>
     <ul>
       <li><b>White keys</b> strum, <b>black keys</b> pick the chord.</li>
-      <li><b>ENV</b> held: minor chord. <b>LFO</b> held: 7th. Both: m7.</li>
+      <li><b>LFO</b> held: 7th chord. <b>ENV</b> is <b>Shift</b>: hold it and turn KNOB 1–4 for the page's second layer (Play, Rhythm, Markov, Voices). ENV + <b>PLAY</b>: both tracks at once. ENV + <b>SEQ</b>: back to the top. ENV + <b>REC</b>: overdub the loop. ENV + a black key: pick it for editing without playing it.</li>
       <li><b>ARP</b> chord hold: the chord keeps playing after you let go.</li>
       <li><b>PLAY</b> the drums on / off. <b>SEQ</b> the sequence (bass and chord in time, the loop, Markov) on / off. <b>REC</b> records a loop; held a second, clears it.</li>
       <li><b>OCT−</b> / <b>OCT+</b> move the strings an octave.</li>
@@ -160,7 +187,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
       <li>On a knob: <kbd>↑</kbd> <kbd>↓</kbd> (or <kbd>←</kbd> <kbd>→</kbd>) turn it, <kbd>Page Up</kbd> <kbd>Page Down</kbd> faster.</li>
       <li>On a button or key: <kbd>Space</kbd> or <kbd>Enter</kbd> holds it down while you hold the key. <kbd>Shift</kbd>+<kbd>Enter</kbd> keeps a button down until you press it again.</li>
       <li>Shortcuts, while the panel has focus (turn them off above): strum keys (white) 1–8: <kbd>Q</kbd>–<kbd>I</kbd>, 9–16: <kbd>A</kbd>–<kbd>K</kbd>. Chord keys (black) 1–11: <kbd>1</kbd>–<kbd>0</kbd>, <kbd>-</kbd>.</li>
-      <li>Hold <kbd>Shift</kbd> (ENV) for a minor chord, <kbd>/</kbd> (LFO) for a 7th, both for an m7.</li>
+      <li>Hold <kbd>Shift</kbd> for ENV (Shift), <kbd>/</kbd> for LFO (a 7th chord).</li>
       <li><kbd>P</kbd> PLAY, <kbd>O</kbd> REC (record a loop), <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+, <kbd>↑</kbd> <kbd>↓</kbd> on a button or key turn SELECT.</li>
     </ul>
   </div>
@@ -171,6 +198,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
       The idea of running FM-1 firmware in the browser comes from <a href="https://www.groove-os.com/">Groove OS</a>'s emulator.</p>
   </div>
 </section>
+</div>
 </main>
 
 <script>
@@ -188,7 +216,25 @@ const $ = (id) => document.getElementById(id);
 const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}"); } catch { return {}; } })();
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* private window */ } };
 
-const svg = $("panel");
+// ---------------------------------------------------------------- the panel (a picture: aria-hidden)
+// Two layouts. WIDE: the FM-1 as it is (1000 x 640). TALL, a phone held upright: the panel (500 x 560) in the top
+// part of the screen, the keys across the whole width of the rest (their own drawing). fit() picks one and build()
+// draws it; the controls are made again with it (wire()).
+const svg = $("panel"), keysvg = $("keysvg"), kbdbox = $("kbdbox"), kcontrols = $("kcontrols"), device = $("device");
+const LAYOUT = {
+  wide: { vb: [1000, 640], body: [4, 4, 992, 632, 44],
+          enc: { MASTER: [105, 100, 24], SELECT: [215, 100, 24], PRESETS: [105, 205, 24], ALGORITHM: [215, 205, 24] },
+          knob: (i) => [610 + i * 104, 100, 22], octTray: [58, 258, 210, 58], octd: [72, 268, 82, 38], octu: [170, 268, 82, 38],
+          screen: [300, 44, 236, 18], btnTray: [568, 160, 400, 140], btn: (r, i) => [582 + i * 63, r ? 236 : 174, 54, 48], bs: 15,
+          keys: [36, 340, 928, 270] },
+  tall: { vb: [500, 560], body: [0, 0, 500, 560, 24],
+          enc: { MASTER: [56, 60, 25], SELECT: [444, 60, 25], PRESETS: [56, 158, 25], ALGORITHM: [444, 158, 25] },
+          knob: (i) => [70 + i * 120, 334, 26], octTray: [4, 202, 104, 60], octd: [12, 210, 88, 44], octu: [400, 210, 88, 44],
+          screen: [118, 6, 264, 14], btnTray: [6, 392, 488, 162], btn: (r, i) => [14 + i * 80, r ? 476 : 402, 72, 68], bs: 17,
+          help: [250, 284], keys: null },
+};
+let mode = "wide", L = LAYOUT.wide, kbdVb = [500, 300];
+
 function el(tag, attrs, parent = svg) {
   const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -201,10 +247,11 @@ function text(parent, x, y, s, size, fill = LABEL, weight = 600) {
   t.textContent = s;
   return t;
 }
+const clear = (n) => { while (n.firstChild) n.removeChild(n.firstChild); };
 
-// ---------------------------------------------------------------- the panel (a picture: aria-hidden)
-el("rect", { x: 4, y: 4, width: 992, height: 632, rx: 44, fill: BODY });
-const knobs = {};
+const knobs = {}, buttons = {}, keys = [];
+let master = 2800;
+const masterPct = () => Math.round(master * 100 / 4096);
 function knob(x, y, r, label, role, name) {
   const g = el("g", { class: "ctl knob" });
   el("circle", { cx: x, cy: y, r: r + 5, fill: TRAY }, g);
@@ -212,46 +259,31 @@ function knob(x, y, r, label, role, name) {
   const ind = el("line", { x1: x, y1: y - r + 5, x2: x, y2: y - r + 15, stroke: LABEL, "stroke-width": 3, "stroke-linecap": "round" }, g);
   text(g, x, y - r - 12, label, 17);
   el("circle", { cx: x, cy: y, r: r + 14, fill: "transparent" }, g);
-  knobs[label] = { g, ind, x, y, angle: 0, role, name: name || label };
+  const angle = knobs[label] ? knobs[label].angle : 0;
+  knobs[label] = { g, ind, x, y, angle, role, name: name || label, svg };
   return knobs[label];
 }
-knob(105, 100, 24, "MASTER", "master");
-knob(215, 100, 24, "SELECT", ENC.SELECT);
-knob(105, 205, 24, "PRESETS", ENC.PRESETS);
-knob(215, 205, 24, "ALGORITHM", ENC.ALGORITHM);
-for (let i = 0; i < 4; i++) knob(610 + i * 104, 100, 22, `KNOB${i + 1}`, ENC[`KNOB${i + 1}`], `KNOB ${i + 1}`);
-
-const buttons = {};
-function button(x, y, w, h, label, two) {
+function button(x, y, w, h, label, two, size) {
   const g = el("g", { class: "ctl" });
   el("rect", { x, y, width: w, height: h, rx: 9, fill: BTNC, stroke: "#4a4d52", "stroke-width": 1.5, class: "btnface" }, g);
-  if (two) { text(g, x + w / 2, y + h / 2 - 1, label, 12); text(g, x + w / 2, y + h / 2 + 12, two, 12); }
-  else text(g, x + w / 2, y + h / 2 + 5, label, 15);
-  buttons[label] = { g, bit: BTN[label], name: { "OCT-": "OCT minus", "OCT+": "OCT plus" }[label] || label, light: "" };
+  if (two) { text(g, x + w / 2, y + h / 2 - 1, label, size - 3); text(g, x + w / 2, y + h / 2 + 12, two, size - 3); }
+  else text(g, x + w / 2, y + h / 2 + 5, label, size);
+  buttons[label] = { g, bit: BTN[label], name: { "OCT-": "OCT minus", "OCT+": "OCT plus" }[label] || label, light: "", svg };
 }
-el("rect", { x: 58, y: 258, width: 210, height: 58, rx: 14, fill: TRAY });
-button(72, 268, 82, 38, "OCT-"); button(170, 268, 82, 38, "OCT+");
-el("rect", { x: 300, y: 44, width: 236, height: 236, rx: 26, fill: "#111214" });
-el("rect", { x: 568, y: 160, width: 400, height: 140, rx: 18, fill: TRAY });
-const ROW1 = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
-for (let i = 0; i < 6; i++) button(582 + i * 63, 174, 54, 48, ROW1[i]);          // row by row: the reading order
-for (let i = 0; i < 6; i++) button(582 + i * 63, 236, 54, 48, ROW2[i], ROW2[i] === "PLAY" ? "STOP" : undefined);
-
-const keys = [];
-(function keybed(x0, y0, w, h) {
-  el("rect", { x: x0, y: y0, width: w, height: h, rx: 18, fill: TRAY });
+function keybed(x0, y0, w, h, parent) {
+  el("rect", { x: x0, y: y0, width: w, height: h, rx: 18, fill: TRAY }, parent);
   const pitch = (w - 24) / 16, kw = pitch * 0.78;
   BLACK_AFTER.forEach((a, k) => {                                                   // the chord keys: the upper row
-    const g = el("g", { class: "ctl" });
+    const g = el("g", { class: "ctl" }, parent);
     el("rect", { x: x0 + 12 + (a + 1) * pitch - kw / 2, y: y0 + h * 0.06, width: kw, height: h * 0.33, rx: kw / 2, fill: KEY_B, class: "keyface black" }, g);
-    keys[BLACK_K[k]] = { g, name: `Chord key ${k + 1}`, tip: `Black key: picks a chord (out of the box: ${CHORDS[k]})`, light: "" };
+    keys[BLACK_K[k]] = { g, name: `Chord key ${k + 1}`, tip: `Black key: picks a chord (out of the box: ${CHORDS[k]})`, light: "", svg: parent };
   });
   for (let i = 0; i < 16; i++) {
-    const g = el("g", { class: "ctl" });
+    const g = el("g", { class: "ctl" }, parent);
     el("rect", { x: x0 + 12 + i * pitch + (pitch - kw) / 2, y: y0 + h * 0.43, width: kw, height: h * 0.52, rx: kw / 2, fill: KEY_W, class: "keyface white" }, g);
-    keys[WHITE_K[i]] = { g, name: `Strum key ${i + 1}`, tip: "White key: plucks a string of the chord" };
+    keys[WHITE_K[i]] = { g, name: `Strum key ${i + 1}`, tip: "White key: plucks a string of the chord", svg: parent };
   }
-})(36, 340, 928, 270);
+}
 
 // ---------------------------------------------------------------- the controls
 // The drawing is only a picture (pointer-events: none). Each control gets an invisible HTML target over it,
@@ -259,17 +291,18 @@ const keys = [];
 // and touchstart on HTML elements but not on SVG ones, so the controls keep their touches while a finger
 // anywhere else on the device scrolls the page natively.
 const controls = $("controls");
-function group(label) {
+function group(label, parent = controls) {
   const d = document.createElement("div");
   d.setAttribute("role", "group");
   d.setAttribute("aria-label", label);
-  controls.appendChild(d);
+  parent.appendChild(d);
   return d;
 }
 function hit(c, parent, attrs, cls) {
-  const b = c.g.getBBox(), d = document.createElement("div");
+  const b = c.g.getBBox(), vb = c.svg.viewBox.baseVal, d = document.createElement("div");
   d.className = "hit" + (cls ? " " + cls : "");
-  Object.assign(d.style, { left: `${b.x / 10}%`, top: `${b.y / 6.4}%`, width: `${b.width / 10}%`, height: `${b.height / 6.4}%` });
+  Object.assign(d.style, { left: `${b.x * 100 / vb.width}%`, top: `${b.y * 100 / vb.height}%`,
+                           width: `${b.width * 100 / vb.width}%`, height: `${b.height * 100 / vb.height}%` });
   d.tabIndex = 0;
   for (const [k, v] of Object.entries(attrs)) if (v != null) d.setAttribute(k, v);
   if (attrs["aria-description"]) d.title = attrs["aria-description"];
@@ -280,28 +313,64 @@ function hit(c, parent, attrs, cls) {
   c.hit = d;
 }
 // what each control does (said as its description, and on hover; the Buttons list below says the same)
-const TIP = { FX: "Sound page; again: Voices", SEL: "Chords page: press a black key, then KNOB 1 and 2 change its chord; again: Markov", ENV: "Hold for a minor chord",
-  LFO: "Hold for a 7th chord (with ENV: m7)", EDIT: "Next page", GLO: "Rhythm page; again: Setup", HOME: "Play page; again: Mix", SAVE: "Save",
+const TIP = { FX: "Sound page; again: Voices", SEL: "Chords page: press a black key, then KNOB 1 and 2 change its chord; again: Markov",
+  ENV: "Shift: hold it and turn the knobs for the page's second layer, or press PLAY, SEQ, REC or a black key",
+  LFO: "Hold for a 7th chord", EDIT: "Next page", GLO: "Rhythm page; again: Setup", HOME: "Play page; again: Mix", SAVE: "Save",
   ARP: "Chord hold", SEQ: "The sequence on and off: bass and chord in time, the loop, Markov", PLAY: "The drums on and off",
   REC: "Record a loop; hold to clear it",
   "OCT-": "Strings an octave down", "OCT+": "Strings an octave up", SELECT: "Tempo", ALGORITHM: "Rhythm", PRESETS: "Transpose",
   KNOB1: "The first value on the screen", KNOB2: "The second value on the screen", KNOB3: "The third value on the screen",
   KNOB4: "The fourth value on the screen" };
-const gKnobs = group("Knobs"), gButtons = group("Buttons"), gChords = group("Chord keys (black)"), gStrum = group("Strum keys (white)");
-let master = 2800;
-const masterPct = () => Math.round(master * 100 / 4096);
-for (const [label, k] of Object.entries(knobs)) {
-  if (k.role === "master")      // the volume has a value: a slider
-    hit(k, gKnobs, { role: "slider", "aria-label": "MASTER", "aria-description": "Volume", "aria-orientation": "vertical",
-                     "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": masterPct(), "aria-valuetext": `${masterPct()} percent` }, "knob");
-  else                          // an endless encoder has none: the screen says what it changed
-    hit(k, gKnobs, { role: "button", "aria-label": k.name,
-                     "aria-description": `${TIP[label]}. Turn it with the arrow keys, Page Up and Page Down for big steps` }, "knob");
+const ENC_ROLE = { MASTER: "master", SELECT: ENC.SELECT, PRESETS: ENC.PRESETS, ALGORITHM: ENC.ALGORITHM };
+const ROW1 = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], ROW2 = ["HOME", "SAVE", "ARP", "SEQ", "PLAY", "REC"];
+
+function build() {
+  const [W, H] = L.vb;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  [svg, controls, keysvg, kcontrols].forEach(clear);
+  keys.length = 0;
+  for (const k of Object.keys(buttons)) delete buttons[k];
+  const [bx, by, bw, bh, br] = L.body;
+  el("rect", { x: bx, y: by, width: bw, height: bh, rx: br, fill: BODY });
+  for (const [label, [x, y, r]] of Object.entries(L.enc)) knob(x, y, r, label, ENC_ROLE[label]);
+  for (let i = 0; i < 4; i++) { const [x, y, r] = L.knob(i); knob(x, y, r, `KNOB${i + 1}`, ENC[`KNOB${i + 1}`], `KNOB ${i + 1}`); }
+  if (L.octTray) { const [x, y, w, h] = L.octTray; el("rect", { x, y, width: w, height: h, rx: 14, fill: TRAY }); }
+  if (mode === "tall") { el("rect", { x: 392, y: 202, width: 104, height: 60, rx: 14, fill: TRAY }); }
+  button(...L.octd, "OCT-", undefined, 15); button(...L.octu, "OCT+", undefined, 15);
+  { const [x, y, sz, inset] = L.screen;                                               // the screen in its frame
+    el("rect", { x, y, width: sz, height: sz, rx: 26, fill: "#111214" });
+    Object.assign($("screen").style, { left: `${(x + inset) * 100 / W}%`, top: `${(y + inset) * 100 / H}%`,
+                                       width: `${(sz - 2 * inset) * 100 / W}%`, height: `${(sz - 2 * inset) * 100 / H}%` }); }
+  { const [x, y, w, h] = L.btnTray; el("rect", { x, y, width: w, height: h, rx: 18, fill: TRAY }); }
+  for (let i = 0; i < 6; i++) button(...L.btn(0, i), ROW1[i], undefined, L.bs);          // row by row: the reading order
+  for (let i = 0; i < 6; i++) button(...L.btn(1, i), ROW2[i], ROW2[i] === "PLAY" ? "STOP" : undefined, L.bs);
+  if (mode === "tall") {                                                                // the keys: their own drawing
+    keysvg.setAttribute("viewBox", `0 0 ${kbdVb[0]} ${kbdVb[1]}`);
+    el("rect", { x: 0, y: 0, width: kbdVb[0], height: kbdVb[1], fill: BODY }, keysvg);
+    keybed(6, 4, kbdVb[0] - 12, kbdVb[1] - 10, keysvg);
+    const [hx, hy] = L.help, hb = $("helpbtn");
+    Object.assign(hb.style, { left: `${(hx - 15) * 100 / W}%`, top: `${(hy - 15) * 100 / H}%` });
+  } else {
+    keybed(...L.keys, svg);
+  }
+  const gKnobs = group("Knobs"), gButtons = group("Buttons");
+  const kparent = mode === "tall" ? kcontrols : controls;
+  const gChords = group("Chord keys (black)", kparent), gStrum = group("Strum keys (white)", kparent);
+  for (const [label, k] of Object.entries(knobs)) {
+    if (k.role === "master")      // the volume has a value: a slider
+      hit(k, gKnobs, { role: "slider", "aria-label": "MASTER", "aria-description": "Volume", "aria-orientation": "vertical",
+                       "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": masterPct(), "aria-valuetext": `${masterPct()} percent` }, "knob");
+    else                          // an endless encoder has none: the screen says what it changed
+      hit(k, gKnobs, { role: "button", "aria-label": k.name,
+                       "aria-description": `${TIP[label]}. Turn it with the arrow keys, Page Up and Page Down for big steps` }, "knob");
+  }
+  for (const lbl of ["OCT-", "OCT+", ...ROW1, ...ROW2])
+    hit(buttons[lbl], gButtons, { role: "button", "aria-label": buttons[lbl].name, "aria-pressed": "false", "aria-description": TIP[lbl] });
+  BLACK_K.forEach((n) => hit(keys[n], gChords, { role: "button", "aria-label": keys[n].name, "aria-description": keys[n].tip }));
+  WHITE_K.forEach((n) => hit(keys[n], gStrum, { role: "button", "aria-label": keys[n].name, "aria-description": keys[n].tip }));
+  for (const k of Object.values(knobs)) drawKnob(k);
+  wire();
 }
-for (const lbl of ["OCT-", "OCT+", ...ROW1, ...ROW2])
-  hit(buttons[lbl], gButtons, { role: "button", "aria-label": buttons[lbl].name, "aria-pressed": "false", "aria-description": TIP[lbl] });
-BLACK_K.forEach((n) => hit(keys[n], gChords, { role: "button", "aria-label": keys[n].name, "aria-description": keys[n].tip }));
-WHITE_K.forEach((n) => hit(keys[n], gStrum, { role: "button", "aria-label": keys[n].name, "aria-description": keys[n].tip }));
 
 // ---------------------------------------------------------------- state and input
 let node = null, gain = null, btnMask = 0, keyMask = 0, latched = 0;
@@ -325,47 +394,16 @@ function syncKeys() {
   if (m !== keyMask) { keyMask = m; send({ type: "keys", mask: m }); }
   keys.forEach((k, i) => k.g.classList.toggle("held", !!(m & (1 << i))));
 }
-
-for (const b of Object.values(buttons)) {
-  b.hit.addEventListener("contextmenu", (e) => e.preventDefault());
-  b.hit.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    if (e.shiftKey || e.button === 2) { latched ^= 1 << b.bit; syncButtons(); return; }
-    if (latched & (1 << b.bit)) { latched &= ~(1 << b.bit); syncButtons(); return; }
-    b.hit.setPointerCapture(e.pointerId);
-    btnHeldBy.set("p" + e.pointerId, b.bit);
-    syncButtons();
-  });
-}
-keys.forEach((k, i) => {
-  k.hit.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    k.hit.setPointerCapture(e.pointerId);
-    keyHeldBy.set("p" + e.pointerId, i);
-    syncKeys();
-  });
-  // the strum plate: a finger that went down on a white key moves the held key as it slides
-  if (WHITE_K.includes(i)) k.hit.addEventListener("pointermove", (e) => {
-    const id = "p" + e.pointerId;
-    if (!keyHeldBy.has(id)) return;
-    for (const w of WHITE_K) {
-      const r = keys[w].hit.getBoundingClientRect();
-      if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top - 40 && e.clientY < r.bottom + 40) {
-        if (keyHeldBy.get(id) !== w) { keyHeldBy.set(id, w); syncKeys(); }
-        return;
-      }
-    }
-  });
-});
 function pointerUp(e) {
   const id = "p" + e.pointerId;
   if (btnHeldBy.delete(id)) syncButtons();
   if (keyHeldBy.delete(id)) syncKeys();
 }
-const device = $("device");
-device.addEventListener("pointerup", pointerUp);
-device.addEventListener("pointercancel", pointerUp);
-device.addEventListener("lostpointercapture", pointerUp);
+for (const box of [device, kbdbox]) {
+  box.addEventListener("pointerup", pointerUp);
+  box.addEventListener("pointercancel", pointerUp);
+  box.addEventListener("lostpointercapture", pointerUp);
+}
 
 function drawKnob(k) {
   k.ind.setAttribute("transform", `rotate(${k.angle} ${k.x} ${k.y})`);
@@ -383,43 +421,6 @@ function turn(k, n) {
     send({ type: "enc", role: k.role, n });
   }
   drawKnob(k);
-}
-for (const k of Object.values(knobs)) {
-  if (k.role === "master") { k.angle = -135 + 270 * master / 4096; drawKnob(k); }
-  let drag = null, wheel = 0;
-  k.hit.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    k.hit.setPointerCapture(e.pointerId);
-    drag = { y: e.clientY, acc: 0 };
-  });
-  k.hit.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    drag.acc += drag.y - e.clientY;
-    drag.y = e.clientY;
-    const step = k.role === "master" ? 3 : 7;
-    const n = Math.trunc(drag.acc / step);
-    if (n) { drag.acc -= n * step; turn(k, n); }
-  });
-  const end = () => { drag = null; };
-  k.hit.addEventListener("pointerup", end);
-  k.hit.addEventListener("pointercancel", end);
-  k.hit.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
-    if (Math.abs(dy) >= 50) { turn(k, dy < 0 ? 1 : -1); wheel = 0; return; }   // a mouse wheel notch: one detent
-    wheel -= dy;                                                                   // a trackpad: by distance
-    const n = Math.trunc(wheel / 25);
-    if (n) { wheel -= n * 25; turn(k, n); }
-  }, { passive: false });
-  k.hit.addEventListener("keydown", (e) => {
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const big = k.role === "master" ? 8 : 5;
-    const n = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: big, PageDown: -big }[e.key];
-    if (n) turn(k, n);
-    else if (k.role === "master" && (e.key === "Home" || e.key === "End")) turn(k, e.key === "End" ? 64 : -64);
-    else return;
-    e.preventDefault(); e.stopPropagation();
-  });
 }
 
 // a press from the keyboard lasts at least 50 ms: the firmware reads the buttons every 16 ms, and a quick tap must
@@ -440,34 +441,138 @@ function letGo(id) {
   const wait = 50 - (performance.now() - (at ?? 0));
   if (wait > 0) setTimeout(go, wait); else go();
 }
-// the keyboard on a focused button or key: Space or Enter holds it down while held; Shift+Enter keeps a button down.
-// A screen reader's "activate" is a click with no pointer and no key before it: a short press
-for (const [c, kind] of [...Object.values(buttons).map((b) => [b, "btn"]), ...keys.map((k, i) => [k, i])]) {
-  c.hit.addEventListener("pointerdown", () => { c.pointerAt = performance.now(); });
-  c.hit.addEventListener("click", (e) => {
-    if (!node || performance.now() - (c.pointerAt || -1e9) < 2000) return;
-    if (kind === "btn" && latched & (1 << c.bit)) { latched &= ~(1 << c.bit); syncButtons(); return; }
-    holdDown("t", kind === "btn" ? "btn" : "key", kind === "btn" ? c.bit : kind);
-    setTimeout(() => letGo("t"), 80);
+
+// the controls' events, made again with each build
+function wire() {
+  for (const b of Object.values(buttons)) {
+    b.hit.addEventListener("contextmenu", (e) => e.preventDefault());
+    b.hit.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (e.shiftKey || e.button === 2) { latched ^= 1 << b.bit; syncButtons(); return; }
+      if (latched & (1 << b.bit)) { latched &= ~(1 << b.bit); syncButtons(); return; }
+      b.hit.setPointerCapture(e.pointerId);
+      btnHeldBy.set("p" + e.pointerId, b.bit);
+      syncButtons();
+    });
+  }
+  keys.forEach((k, i) => {
+    k.hit.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      k.hit.setPointerCapture(e.pointerId);
+      keyHeldBy.set("p" + e.pointerId, i);
+      syncKeys();
+    });
+    // the strum plate: a finger that went down on a white key moves the held key as it slides
+    if (WHITE_K.includes(i)) k.hit.addEventListener("pointermove", (e) => {
+      const id = "p" + e.pointerId;
+      if (!keyHeldBy.has(id)) return;
+      for (const w of WHITE_K) {
+        const r = keys[w].hit.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top - 40 && e.clientY < r.bottom + 40) {
+          if (keyHeldBy.get(id) !== w) { keyHeldBy.set(id, w); syncKeys(); }
+          return;
+        }
+      }
+    });
   });
-  c.hit.addEventListener("keydown", (e) => {
-    if ((e.key !== " " && e.key !== "Enter") || e.metaKey || e.ctrlKey || e.altKey) return;
-    e.preventDefault(); e.stopPropagation();
-    if (e.repeat || !node) return;
-    if (kind === "btn" && e.key === "Enter" && e.shiftKey) { latched ^= 1 << c.bit; syncButtons(); return; }
-    if (kind === "btn") {
-      if (latched & (1 << c.bit)) { latched &= ~(1 << c.bit); syncButtons(); return; }
-      holdDown("f" + e.key, "btn", c.bit);
-    } else holdDown("f" + e.key, "key", kind);
-  });
-  c.hit.addEventListener("keyup", (e) => letGo("f" + e.key));
-  c.hit.addEventListener("blur", () => {
-    let b = false, k = false;
-    for (const id of ["f ", "fEnter"]) { b = btnHeldBy.delete(id) || b; k = keyHeldBy.delete(id) || k; }
-    if (b) syncButtons();
-    if (k) syncKeys();
-  });
+  for (const k of Object.values(knobs)) {
+    if (k.role === "master") { k.angle = -135 + 270 * master / 4096; drawKnob(k); }
+    let drag = null, wheel = 0;
+    k.hit.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      k.hit.setPointerCapture(e.pointerId);
+      drag = { y: e.clientY, acc: 0 };
+    });
+    k.hit.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      drag.acc += drag.y - e.clientY;
+      drag.y = e.clientY;
+      const step = k.role === "master" ? 3 : 7;
+      const n = Math.trunc(drag.acc / step);
+      if (n) { drag.acc -= n * step; turn(k, n); }
+    });
+    const end = () => { drag = null; };
+    k.hit.addEventListener("pointerup", end);
+    k.hit.addEventListener("pointercancel", end);
+    k.hit.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+      if (Math.abs(dy) >= 50) { turn(k, dy < 0 ? 1 : -1); wheel = 0; return; }   // a mouse wheel notch: one detent
+      wheel -= dy;                                                                   // a trackpad: by distance
+      const n = Math.trunc(wheel / 25);
+      if (n) { wheel -= n * 25; turn(k, n); }
+    }, { passive: false });
+    k.hit.addEventListener("keydown", (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const big = k.role === "master" ? 8 : 5;
+      const n = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: big, PageDown: -big }[e.key];
+      if (n) turn(k, n);
+      else if (k.role === "master" && (e.key === "Home" || e.key === "End")) turn(k, e.key === "End" ? 64 : -64);
+      else return;
+      e.preventDefault(); e.stopPropagation();
+    });
+  }
+  // the keyboard on a focused button or key: Space or Enter holds it down while held; Shift+Enter keeps a button down.
+  // A screen reader's "activate" is a click with no pointer and no key before it: a short press
+  for (const [c, kind] of [...Object.values(buttons).map((b) => [b, "btn"]), ...keys.map((k, i) => [k, i])]) {
+    c.hit.addEventListener("pointerdown", () => { c.pointerAt = performance.now(); });
+    c.hit.addEventListener("click", (e) => {
+      if (!node || performance.now() - (c.pointerAt || -1e9) < 2000) return;
+      if (kind === "btn" && latched & (1 << c.bit)) { latched &= ~(1 << c.bit); syncButtons(); return; }
+      holdDown("t", kind === "btn" ? "btn" : "key", kind === "btn" ? c.bit : kind);
+      setTimeout(() => letGo("t"), 80);
+    });
+    c.hit.addEventListener("keydown", (e) => {
+      if ((e.key !== " " && e.key !== "Enter") || e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault(); e.stopPropagation();
+      if (e.repeat || !node) return;
+      if (kind === "btn" && e.key === "Enter" && e.shiftKey) { latched ^= 1 << c.bit; syncButtons(); return; }
+      if (kind === "btn") {
+        if (latched & (1 << c.bit)) { latched &= ~(1 << c.bit); syncButtons(); return; }
+        holdDown("f" + e.key, "btn", c.bit);
+      } else holdDown("f" + e.key, "key", kind);
+    });
+    c.hit.addEventListener("keyup", (e) => letGo("f" + e.key));
+    c.hit.addEventListener("blur", () => {
+      let b = false, k = false;
+      for (const id of ["f ", "fEnter"]) { b = btnHeldBy.delete(id) || b; k = keyHeldBy.delete(id) || k; }
+      if (b) syncButtons();
+      if (k) syncKeys();
+    });
+  }
+  syncButtons(); syncKeys();
 }
+
+// the layout for the window: TALL for a phone held upright (taller than wide by a tenth), else WIDE
+function fit() {
+  const vw = innerWidth, vh = innerHeight, tall = vh > vw * 1.1;
+  const was = mode, wasVb = kbdVb.join();
+  mode = tall ? "tall" : "wide";
+  L = LAYOUT[mode];
+  document.body.classList.toggle("tall", tall);
+  if (tall) {
+    const w = Math.min(vw, vh * 0.56 * 500 / 560), h = w * 560 / 500;
+    Object.assign(device.style, { width: `${w}px`, height: `${h}px` });
+    kbdbox.style.top = `calc(env(safe-area-inset-top, 0px) + ${h}px)`;
+    const kr = kbdbox.getBoundingClientRect();
+    kbdVb = [500, Math.max(160, Math.round(500 * kr.height / Math.max(1, kr.width)))];
+  } else {
+    /* a phone on its side (short): the whole FM-1 on the screen, as high as it goes; the page's header scrolled away */
+    const short = vh < 600;
+    document.body.classList.toggle("short", short);
+    Object.assign(device.style, { width: short ? `${Math.min(vw - 32, (vh - 16) * 1000 / 640)}px` : "", height: "" });
+    document.body.classList.remove("helpopen");
+  }
+  if (mode !== was || kbdVb.join() !== wasVb || !Object.keys(buttons).length) {
+    btnHeldBy.clear(); keyHeldBy.clear();
+    build();
+    kcontrols.inert = controls.inert;
+  }
+}
+addEventListener("resize", fit);
+$("helpbtn").addEventListener("click", () => { document.body.classList.add("helpopen"); $("sheet-close").focus(); });
+$("sheet-close").addEventListener("click", () => { document.body.classList.remove("helpopen"); $("helpbtn").focus(); });
+fit();
 
 // shortcuts: single letters, only while the panel has focus, and they can be turned off
 const KEYMAP = {};
@@ -475,12 +580,13 @@ const KEYMAP = {};
 "asdfghjk".split("").forEach((c, i) => KEYMAP["Key" + c.toUpperCase()] = { key: WHITE_K[8 + i] });
 "1234567890".split("").forEach((c, i) => KEYMAP["Digit" + c] = { key: BLACK_K[i] });
 KEYMAP.Minus = { key: BLACK_K[10] };
-Object.assign(KEYMAP, { KeyP: { btn: BTN.PLAY }, KeyO: { btn: BTN.REC }, ShiftLeft: { btn: BTN.ENV }, ShiftRight: { btn: BTN.ENV }, Slash: { btn: BTN.LFO },
-                        Escape: { btn: BTN.HOME }, KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] } });
+Object.assign(KEYMAP, { KeyP: { btn: BTN.PLAY }, KeyL: { btn: BTN.SEQ }, KeyO: { btn: BTN.REC }, ShiftLeft: { btn: BTN.ENV },
+                        ShiftRight: { btn: BTN.ENV }, Slash: { btn: BTN.LFO }, Escape: { btn: BTN.HOME },
+                        KeyZ: { btn: BTN["OCT-"] }, KeyX: { btn: BTN["OCT+"] } });
 const shortcuts = $("shortcuts");
 if (prefs.shortcuts === false) shortcuts.checked = false;
 shortcuts.addEventListener("change", () => { prefs.shortcuts = shortcuts.checked; savePrefs(); });
-controls.addEventListener("keydown", (e) => {
+function onShortcut(e) {
   if (!node || !shortcuts.checked || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.code === "ArrowUp" || e.code === "ArrowDown") { turn(knobs.SELECT, e.code === "ArrowUp" ? 1 : -1); e.preventDefault(); return; }
   const m = KEYMAP[e.code];
@@ -489,7 +595,9 @@ controls.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   if (m.key !== undefined) holdDown("k" + e.code, "key", m.key);
   else holdDown("k" + e.code, "btn", m.btn);
-});
+}
+controls.addEventListener("keydown", onShortcut);
+kcontrols.addEventListener("keydown", onShortcut);
 addEventListener("keyup", (e) => letGo("k" + e.code));
 function letGoKeys() {
   for (const id of [...btnHeldBy.keys()]) if (id[0] === "k" || id[0] === "f") btnHeldBy.delete(id);
@@ -497,7 +605,8 @@ function letGoKeys() {
   syncButtons(); syncKeys();
 }
 addEventListener("blur", letGoKeys);
-controls.addEventListener("focusout", (e) => { if (!controls.contains(e.relatedTarget)) letGoKeys(); });
+for (const c of [controls, kcontrols])
+  c.addEventListener("focusout", (e) => { if (!controls.contains(e.relatedTarget) && !kcontrols.contains(e.relatedTarget)) letGoKeys(); });
 
 // ---------------------------------------------------------------- screen and lights
 const ctx = $("screen").getContext("2d");
@@ -678,7 +787,7 @@ async function switchOn() {
     await ready;
     await ac.resume();
     $("start").hidden = true;
-    controls.inert = false;
+    controls.inert = kcontrols.inert = false;
     status.textContent = ac.sampleRate === 44100 ? "On." : `On (the browser runs audio at ${ac.sampleRate} Hz).`;
     syncButtons(); syncKeys();
     readerOn();

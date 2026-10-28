@@ -32,6 +32,9 @@ static const om_param_t PARAMS[P_NPARAMS] = {
     {"Chord", 0, OM_NMODELS - 1, M_MODAL}, {"Tone", 0, 100, 50}, {"Bass", 0, OM_NMODELS - 1, M_ANALOG},
     {"Tone", 0, 100, 35}, {"Bass", 0, 100, 60}, {"Bars", 0, 3, 1},
     {"Arp", 0, 100, 0}, {"Changes", 0, 3, 0}, {"Bass var", 0, 100, 40}, {"Chaos", 0, 100, 30},
+    {"Velocity", 1, 100, 80}, {"Position", 0, 100, 10}, {"LPG color", 0, 100, 50},
+    {"Chord color", 0, 100, 25}, {"Chord rel", 0, 100, 40}, {"Bass color", 0, 100, 25}, {"Bass rel", 0, 100, 40},
+    {"Swing", 0, 50, 0}, {"Arp range", 3, 16, 16}, {"Arp rate", 0, 2, 0}, {"Learn", 0, 100, 50},
 };
 
 const om_rhythm_t *om_rhythm(int i) { return &OM_RHYTHM[(unsigned)i < OM_NRHYTHM ? i : 0]; }
@@ -83,6 +86,8 @@ void om_param_text(int i, int v, char *b)
         s = BARS[v & 3];
     else if (i == P_ARP && v == 0)
         s = "Off";
+    else if (i == P_ARPRATE)
+        s = v == 2 ? "1/4" : v ? "1/8" : "1/16";
     if (s) {
         int k = 0;
         while (s[k] && k < 9) {
@@ -96,6 +101,12 @@ void om_param_text(int i, int v, char *b)
         *b++ = '+';
     }
     itoa_s(v, b);
+    if (i == P_SWING) {
+        while (*b)
+            b++;
+        b[0] = '%';
+        b[1] = 0;
+    }
 }
 
 /* ------------------------------------------------------------- voicing --- */
@@ -116,7 +127,7 @@ void om_voicing(int root, int type, int transpose, int octave, uint8_t harp[OM_N
 }
 
 /* ------------------------------------------------------------ commands --- */
-enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_PAD, C_BNOTE, C_POLY };
+enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_PAD, C_BNOTE, C_POLY, C_RESTART };
 #define QN 64u
 static uint32_t q[QN];
 static volatile uint32_t q_w, q_r;
@@ -138,6 +149,7 @@ void om_strum_v(int s, int vel) { post(C_STRUM, s, vel); }
 void om_play(int on) { post(C_PLAY, on, 0); }
 void om_seq(int on) { post(C_SEQ, on, 0); }
 void om_rec(int cmd) { post(C_REC, cmd, 0); }
+void om_restart(void) { post(C_RESTART, 0, 0); }
 void om_bass_note(int note, int on) { post(C_BNOTE, note, on); }
 void om_poly(int n) { post(C_POLY, n, 0); }
 void om_panic(void) { post(C_PANIC, 0, 0); }
@@ -225,23 +237,28 @@ static uint8_t ver_h, ver_c, ver_b;             /* the knobs' versions: voices u
 /* each model's level against the OM-84's (measured: a strum, a held chord) */
 static const float G_HARP[OM_NMODELS] = {1.0f, 1.25f, 0.75f, 0.95f, 0.85f, 1.15f};
 static const float G_HELD[OM_NMODELS] = {1.0f, 0.55f, 0.45f, 0.75f, 0.75f, 0.9f};
-/* the chord's and the bass's COLOR (they have one knob): consonant settings */
-static const float C_HELD[OM_NMODELS] = {0.0f, 0.27f, 0.26f, 0.3f, 0.18f, 0.5f};
 static float h_timbre, h_color, h_decay;        /* the harp's knobs, 0..1 */
 
 static void harp_par(mv_par_t *p)
 {
+    float x = (float)par[P_HPOS] * 0.01f;
     p->timbre = h_timbre;
     p->color = h_color;
     p->decay = h_decay;
+    p->pos = 0.01f + 0.49f * x * x;
+    p->lpgc = (float)par[P_LPGC] * 0.01f;
 }
 static void held_par(mv_t *v, int bass, int released)
 {
     const int m = v->model;
+    float rel = (float)par[bass ? P_BREL : P_CREL] * 0.01f;
     v->p.timbre = (float)par[bass ? P_BTIMBRE : P_CTIMBRE] * 0.01f;
-    v->p.color = C_HELD[m];
+    v->p.color = (float)par[bass ? P_BCOLOR : P_CCOLOR] * 0.01f;
+    v->p.pos = 0.015f;
+    v->p.lpgc = 0.5f;
     /* the physical models ring while held and are damped when let go; the LPG's decay is its release */
-    v->p.decay = (m == M_STRING || m == M_MODAL) ? (released ? (bass ? 0.18f : 0.3f) : (bass ? 0.5f : 0.62f)) : 0.32f;
+    v->p.decay = (m == M_STRING || m == M_MODAL) ? (released ? 0.05f + 0.5f * rel : (bass ? 0.5f : 0.62f))
+                                                  : 0.15f + 0.45f * rel;
 }
 
 /* ---- harp strings: the OM-84's (one per white key), or a voice from the pool */
@@ -338,8 +355,8 @@ static void strum_mv(int s, float acc)
 static void strum(int s, int vel)
 {
     int n = harp_n[s];
-    float acc = vel > 0 ? (float)vel * (1.0f / 127.0f) : 0.8f;
-    str_midi_on(s, n, vel > 0 ? vel : 100);
+    float acc = vel > 0 ? (float)vel * (1.0f / 127.0f) : (float)par[P_HVEL] * 0.01f;
+    str_midi_on(s, n, vel > 0 ? vel : par[P_HVEL] * 127 / 100);
     if (par[P_HMODEL] == M_OM84)
         strum_om(s);
     else
@@ -463,12 +480,15 @@ static void retune(void)
 /* ---- the sequence: the loop and Markov */
 static int drums_on, seq_on;
 static int rec_state, rec_pos, rec_len, rec_src;   /* recording: its step, its length, the source it records */
+static int rec_dub, rec_base;                      /* overdubbing (over the loop playing), from the loop's step */
+static int in_step;                                /* do_step() running: what happens is on its step */
+static int dub_root = -1, dub_type;                /* the chord overdubbed at this step */
 static uint32_t gstep, loop_origin;               /* steps since the clock started; the loop's first */
 static int lp_valid;                              /* the loop's chord state known at its position */
 static int bars_left;                             /* Markov: bars to the next chord change */
 static int pulse;                                 /* MIDI clock, 0..5 within a step */
 
-static int loop_on(void) { return seq_on && par[P_BSRC] == SRC_LOOP && *loop_len && rec_state != 2; }
+static int loop_on(void) { return seq_on && par[P_BSRC] == SRC_LOOP && *loop_len && (rec_state != 2 || rec_dub); }
 static int gen_on(void) { return seq_on && par[P_CHANGES] && !loop_on(); }
 
 static void chord_eval(void)
@@ -518,7 +538,7 @@ static void markov_w(int from, float chaos, float *w)
             x *= 2.0f;                             /* a dominant resolves */
         if (tt == CH_MAJ || tt == CH_MIN)
             x *= 1.3f;
-        x += 3.0f * (float)learn[from * OM_NPADS + j];
+        x += 0.06f * (float)par[P_LEARN] * (float)learn[from * OM_NPADS + j];
         w[j] = fm_powf(x, e);
         sum += w[j];
     }
@@ -602,23 +622,30 @@ static void markov_arp(int st)
 {
     static const float JUMP[8] = {0.3f, 4.0f, 2.2f, 1.2f, 0.6f, 0.3f, 0.15f, 0.1f};
     float dens = (float)par[P_ARP] * 0.01f, chaos = (float)par[P_CHAOS] * 0.01f, w[15], p;
-    int d, beat = st % 4 == 0;
+    int d, beat = st % 4 == 0, every = 1 << par[P_ARPRATE], lo = (OM_NSTR - par[P_ARPRANGE]) / 2,
+           hi = lo + par[P_ARPRANGE] - 1;                     /* the span: the middle strings */
+    if (st % every)
+        return;
     p = dens * (beat ? 1.25f : (st & 1) ? 0.6f : 1.0f);
     if (mv_randf() >= p)
         return;
+    if (arp_s < lo || arp_s > hi)
+        arp_s = (lo + hi) / 2;
     for (d = -7; d <= 7; d++) {
         int s = arp_s + d, a = d < 0 ? -d : d;
-        float x = (s < 0 || s >= OM_NSTR) ? 0.0f : JUMP[a] * ((d > 0) == (arp_dir > 0) && d ? 1.6f : 1.0f);
+        float x = (s < lo || s > hi) ? 0.0f : JUMP[a] * ((d > 0) == (arp_dir > 0) && d ? 1.6f : 1.0f);
         w[d + 7] = x > 0.0f ? fm_powf(x, 1.0f - 0.85f * chaos) : 0.0f;
     }
     d = pick(w, 15) - 7;
     if (d)
         arp_dir = d > 0 ? 1 : -1;
     arp_s += d;
-    if (arp_s <= 0 || arp_s >= OM_NSTR - 1)
+    if (arp_s <= lo || arp_s >= hi)
         arp_dir = -arp_dir;
-    arp_s = arp_s < 0 ? 0 : arp_s > OM_NSTR - 1 ? OM_NSTR - 1 : arp_s;
-    strum(arp_s, beat ? 110 : 70 + (int)(mv_randf() * 30.0f));
+    {
+        int vel = (beat ? 110 : 70 + (int)(mv_randf() * 30.0f)) * par[P_HVEL] / 80;   /* (velocity 80: as is) */
+        strum(arp_s, vel > 127 ? 127 : vel);
+    }
 }
 
 /* ---- the loop: 3 bytes a step. [0] the chord: 0 none, 0x80 + root * 9 + type, 0xFF let go; [1] the
@@ -628,9 +655,13 @@ static void rec_put(int what, int code)
     int at;
     if (rec_state != 2)
         return;
-    at = rec_pos + (pulse >= 3 ? 1 : 0);           /* between steps: the nearer one */
+    /* in a step, on it; between steps (rec_pos is the next one by then), the nearer of the two */
+    at = in_step ? rec_pos : rec_pos - (pulse >= 3 ? 0 : 1);
+    if (at < 0)
+        at = 0;
     if (at >= rec_len)
         return;
+    at = (at + rec_base) % rec_len;                /* (overdubbing: from where the loop was) */
     loop[at * 3 + what] = (uint8_t)code;
 }
 static void rec_begin(void)
@@ -642,6 +673,8 @@ static void rec_begin(void)
     for (i = 0; i < OM_LOOP_MAX * 3; i++)
         loop[i] = 0;
     rec_pos = 0;
+    rec_base = 0;
+    rec_dub = 0;
     rec_state = 2;
     rec_src = par[P_BSRC] == SRC_LOOP ? SRC_RHYTHM : par[P_BSRC];
     loop_origin = gstep;
@@ -651,6 +684,8 @@ static void rec_begin(void)
 static void rec_end(int len)
 {
     int half = om_steps / 2;
+    if (rec_dub)
+        len = *loop_len;                           /* overdubbed: the loop as long as it was */
     if (len > 0) {
         len = (len + half - 1) / half * half;      /* whole bars */
         *loop_len = (uint8_t)(len < rec_len ? len : rec_len);
@@ -659,6 +694,7 @@ static void rec_end(int len)
         lp_valid = 0;
     }
     rec_state = 0;
+    rec_dub = 0;
     om_rec_state = 0;
     om_loop_done++;
 }
@@ -709,6 +745,11 @@ static void loop_step(int pos)
         }
     }
     chord_eval();
+    if (rec_dub && rec_state == 2 && live_gate && (e[0] >= 0x80 || rec_pos == 0)) {
+        loop[pos * 3] = (uint8_t)(0x80 + root * CH_NTYPES + type);   /* overdubbing, a chord held: the loop's now */
+        dub_root = root;
+        dub_type = type;
+    }
     if (e[1])
         chord_cmd((char)e[1]);
     if (e[2] == 1 || e[2] == 2) {
@@ -718,9 +759,17 @@ static void loop_step(int pos)
         if (live_gate && lp_root >= 0) {           /* a chord held over the loop: the bass moves to it */
             int d = ((root - lp_root) % 12 + 12) % 12;
             n += d > 6 ? d - 12 : d;
+            if (rec_dub && rec_state == 2)         /* ... and, overdubbing, stays there */
+                loop[pos * 3 + 2] = (uint8_t)(n | (e[2] & 0x80));
         }
         bass_kind = 3;
         bass_play(e[2] & 0x80 ? 'O' : 'T', n);
+    }
+    if (dub_root >= 0) {                           /* (the loop's chord from here on: the one written) */
+        lp_root = dub_root;
+        lp_type = dub_type;
+        lp_gate = 1;
+        dub_root = -1;
     }
 }
 
@@ -754,6 +803,7 @@ static void do_step(void)
 {
     const om_rhythm_t *r = &OM_RHYTHM[rh];
     int half = r->len / 2, src;
+    in_step = 1;
     if (step % half == 0) {                       /* a bar */
         if (rec_state == 1)
             rec_begin();
@@ -788,11 +838,13 @@ static void do_step(void)
             markov_arp(step);
     }
     if (rec_state == 2) {
-        om_loop_pos = (uint8_t)rec_pos;
+        if (!rec_dub)
+            om_loop_pos = (uint8_t)rec_pos;
         if (++rec_pos >= rec_len)
             rec_end(rec_len);                      /* the loop plays from the next step: its first */
     }
     om_step = (uint8_t)step;
+    in_step = 0;
     gstep++;
     if (++step >= r->len) {
         step = 0;
@@ -921,8 +973,9 @@ static void apply(int p, int v)
     case P_HTIMBRE: h_timbre = (float)v * 0.01f; ver_h++; break;
     case P_HCOLOR: h_color = (float)v * 0.01f; ver_h++; break;
     case P_HLEVEL: hvol = (float)v * 0.01f; break;
-    case P_CTIMBRE: ver_c++; break;
-    case P_BTIMBRE: ver_b++; break;
+    case P_CTIMBRE: case P_CCOLOR: case P_CREL: ver_c++; break;
+    case P_BTIMBRE: case P_BCOLOR: case P_BREL: ver_b++; break;
+    case P_HPOS: case P_LPGC: ver_h++; break;
     case P_CHORD: cvol = (float)v * 0.01f; break;
     case P_BLEVEL: bvol = (float)v * 0.01f; break;
     case P_RHYVOL: rvol = (float)v * 0.01f; break;
@@ -1153,6 +1206,15 @@ static void drain(void)
                     rec_state = 1;                  /* from the next bar */
                     om_rec_state = 1;
                 }
+            } else if (a == OM_REC_OVERDUB) {
+                if (loop_on() && !rec_state && om_playing) {
+                    rec_dub = 1;
+                    rec_state = 2;
+                    rec_len = *loop_len;
+                    rec_pos = 0;
+                    rec_base = (int)((gstep - loop_origin) % (uint32_t)rec_len);   /* the step coming next */
+                    om_rec_state = 3;
+                }
             } else if (a == OM_REC_STOP) {
                 if (rec_state)                      /* (the loop goes on in step: it began on a bar) */
                     rec_end(rec_state == 2 ? rec_pos : 0);
@@ -1176,6 +1238,15 @@ static void drain(void)
             } else if (bsv.note == a) {
                 bass_play('R', 0);
                 rec_put(2, 1);
+            }
+            break;
+        case C_RESTART:
+            if (om_playing) {
+                if (rec_state == 2)
+                    rec_end(rec_pos);
+                rec_state = 0;
+                om_rec_state = 0;
+                play_start(1);
             }
             break;
         case C_POLY:
@@ -1470,7 +1541,9 @@ void om_render(int32_t *out, uint32_t n, uint32_t gain_q12)
         if (om_playing && !om_ext) {
             if (pulse_left <= 0.0f) {
                 clock_pulse();
-                pulse_left += step_len * (1.0f / 6.0f);
+                /* swing: the even steps longer, the odd ones shorter by as much */
+                pulse_left += step_len * (1.0f / 6.0f) *
+                              (1.0f + (float)par[P_SWING] * 0.01f * ((om_step & 1u) ? -1.0f : 1.0f));
             }
             if ((float)k > pulse_left)
                 k = (uint32_t)pulse_left + 1u;

@@ -31,7 +31,8 @@ firmware back, and an FM-1 that keeps crashing starts in a safe mode.
 | | |
 |---|---|
 | White keys | The strum plate. Each key plucks one string of the chord. As on the Omnichord, each group of three keys is root, third and fifth, folded into an F#–F window, five groups up, with a root on top. |
-| Black keys | Chord buttons (F C G, Dm Am, Em G7 E7, D7 Bb, A7 by default). Hold **ENV** for the minor, **LFO** for the 7th, both for the m7, the Omnichord's three rows. |
+| Black keys | Chord buttons (F C G, Dm Am, Em G7 E7, D7 Bb, A7 by default). Hold **LFO** for the 7th. |
+| ENV | **Shift.** Hold it and turn KNOB 1–4 for the page's second layer (see below). ENV + PLAY: both tracks at once. ENV + SEQ: back to the top of the bar. ENV + REC: overdub the loop. ENV + a black key: pick that button on the Chords page without playing it. |
 | PLAY | The **drums** track, on and off. |
 | SEQ | The **sequence** track, on and off: the bass and chord in time (the rhythm's patterns, your loop, or Markov), the Markov chord changes and the arp. The clock runs while either track does; a track started while the other plays joins in time. |
 | REC | Record a loop (see Loops below). Press again to stop early. Hold for a second to clear the loop. |
@@ -56,6 +57,15 @@ EDIT steps through all eight.
   **FX again: Voices.** The chord's voice and its tone, the bass's voice and its tone.
 - **SEL: Chords.** Change the chord on any black key: press the key, then turn Root (KNOB 1) and Type (KNOB 2). KNOB 3 and 4 are Transpose and Octave.
   **SEL again: Markov.** Arp, Changes, Bass var, Chaos (see below). Bars over the chord buttons show how likely each is to come next.
+
+### Shift (ENV held)
+
+| Page | KNOB 1–4 while ENV is held |
+|---|---|
+| Play | Velocity (the strum's strength), Position (where a Modal string is struck), LPG color (Analog, FM, Fold) |
+| Rhythm | Swing |
+| Markov | Arp range (how many strings the arp walks over), Arp rate (1/16, 1/8, 1/4), Learn (how much the changes you play count) |
+| Voices | Chord color, Chord rel(ease), Bass color, Bass rel(ease) |
 
 ### The voices
 
@@ -82,6 +92,10 @@ starts on the next bar. After Bars bars (Rhythm page) it stops by itself, sets B
 sequence plays it back. While it plays, your hands are free for the strum plate: the harp follows the
 loop's chords. Hold a chord button over a playing loop and the loop's bass moves to that chord.
 The loop is saved with the rest. Hold REC for a second to clear it.
+
+**Overdub** (ENV + REC, while a loop plays): one pass round the loop, recording over it. Hold a chord
+button while it runs and that part of the loop takes the new chord, its bass moved with it. MIDI channel 3
+notes are recorded too.
 
 ### Markov
 

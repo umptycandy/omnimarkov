@@ -60,6 +60,11 @@ enum {
     P_BLEVEL, P_BARS,                                 /* the bass's level; a recorded loop's length (1, 2, 4, 8 bars) */
     P_ARP, P_CHANGES, P_BVAR, P_CHAOS,                /* Markov: arp density, chord changes (off, every 1, 2, 4
                                                        * bars), the bass's variation, chaos (the chains' temperature) */
+    /* the SHIFT layer (ENV held): */
+    P_HVEL, P_HPOS, P_LPGC,                           /* the harp's velocity, strike position (Modal), the LPG's colour */
+    P_CCOLOR, P_CREL, P_BCOLOR, P_BREL,               /* the chord's and the bass's COLOR and release */
+    P_SWING, P_ARPRANGE, P_ARPRATE, P_LEARN,          /* swing (%), the arp's span (strings) and rate (1/16, 1/8,
+                                                       * 1/4), how much the changes played count to Markov */
     P_NPARAMS
 };
 /* P_BSRC: what the sequence plays the bass and chord from */
@@ -98,9 +103,11 @@ void om_strum(int string);                     /* pluck string 0..15 */
 void om_strum_v(int string, int vel);          /* ... with a velocity, 1..127 */
 void om_play(int on);                          /* the drums track: start / stop (the clock from the top if it was stopped) */
 void om_seq(int on);                           /* the sequence track: start / stop, the same way */
-enum { OM_REC_START, OM_REC_STOP, OM_REC_CLEAR };
+enum { OM_REC_START, OM_REC_STOP, OM_REC_CLEAR, OM_REC_OVERDUB };
 void om_rec(int cmd);                          /* START: record a loop (now if stopped, else from the next bar);
-                                                * STOP: keep what is recorded; CLEAR: no loop */
+                                                * STOP: keep what is recorded; CLEAR: no loop; OVERDUB: once round
+                                                * the playing loop, recording over it (a chord held rewrites it) */
+void om_restart(void);                         /* the clock back to the top (the tracks keep playing) */
 void om_bass_note(int note, int on);           /* a bass note by hand (MIDI in, channel 3) */
 void om_poly(int voices);                      /* the harp's voices, 2..OM_HV_MAX (the CPU governor) */
 void om_panic(void);                           /* everything quiet, now */
@@ -126,7 +133,7 @@ extern volatile uint8_t om_playing, om_step, om_steps;
 extern volatile uint8_t om_drum_hit;           /* bits: drums hit since the UI last cleared it */
 extern volatile uint8_t om_ext;                /* 1: following an external MIDI clock */
 extern volatile uint8_t om_drums_on, om_seq_on; /* the tracks */
-extern volatile uint8_t om_rec_state;          /* 0 no, 1 armed (waiting for the bar), 2 recording */
+extern volatile uint8_t om_rec_state;          /* 0 no, 1 armed (waiting for the bar), 2 recording, 3 overdubbing */
 extern volatile uint8_t om_loop_pos;           /* the loop's step playing (or recording) */
 extern volatile uint8_t om_loop_done;          /* counts loops recorded or cleared: the project changed */
 extern volatile uint8_t om_bsrc;               /* P_BSRC as the engine has it (recording sets it to SRC_LOOP) */
