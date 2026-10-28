@@ -65,9 +65,13 @@ wait 200
 expect chordroot 0
 tap SEQ
 wait 20
-# REC held a second clears it
+# REC held a second clears it (the screen says so, and shows it filling while REC is held)
+shot loop_hint.png
 press REC
-wait 1100
+wait 600
+shot clearing.png
+expect looplen 16
+wait 500
 release REC
 wait 20
 expect looplen 0

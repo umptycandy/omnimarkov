@@ -728,6 +728,16 @@ static uint16_t mix(uint16_t a, uint16_t b, int t)   /* t 0..16: a -> b */
     return (uint16_t)(r << 11 | g << 5 | bl);
 }
 
+/* REC held over a loop: how far to clearing it, 0..10 (0: not held, or not yet a quarter second) */
+static int clear_progress(void)
+{
+    uint32_t t;
+    if (!(ui.btn >> B_REC & 1u) || (ui.btn_used >> B_REC & 1u) || !proj.loop_len || om_rec_state)
+        return 0;
+    t = plat_ms() - ui.rec_t;
+    return t < 250u ? 0 : t >= 1000u ? 10 : (int)(t / 100u);
+}
+
 /* the chord button lit: the one held, or the one the loop plays */
 static int pad_lit(void)
 {
@@ -820,7 +830,8 @@ static void draw_main(void)
              (uint32_t)proj.par[P_TRANSPOSE] << 8 | (uint32_t)(om_chord_level * 8.0f));
     for (s = 0; s < NPADS; s++)
         h = hash(h, proj.pad_root[s] | proj.pad_type[s] << 4);
-    h = hash(h, om_rec_state | (uint32_t)om_count << 4 | (uint32_t)(om_rec_state == 2 ? om_loop_pos / 4u : 0u) << 8);
+    h = hash(h, om_rec_state | (uint32_t)om_count << 4 | (uint32_t)(om_rec_state == 2 ? om_loop_pos / 4u : 0u) << 8 |
+                    (uint32_t)(proj.loop_len != 0) << 16 | (uint32_t)clear_progress() << 17);
     if (ui.view == V_RHYTHM)
         h = hash(hash(hash(h, om_playing ? om_step : 255u), (uint32_t)proj.par[P_RHYTHM]),
                  om_loop_pos | proj.loop_len << 8 | om_rec_state << 16 | om_drums_on << 20 | om_seq_on << 21);
@@ -874,6 +885,18 @@ static void draw_main(void)
         draw_rhythm(44, 62);
     else
         draw_strings(44, 54);
+    if (proj.loop_len && !om_rec_state) {          /* a loop: how to clear it; REC held: clearing it */
+        int pr = clear_progress();
+        if (pr) {
+            const char *t = "CLEARING LOOP";
+            cv_text(240 - 12 - text_w(&FONT_XS, t), 28, &FONT_XS, t, K_RHY);
+            cv_rect(240 - 12 - 100, 40, 100, 2, K_RHY_T);
+            cv_rect(240 - 12 - 100, 40, 10 * pr, 2, K_RHY);
+        } else {
+            const char *hint = "HOLD REC: CLEAR LOOP";
+            cv_text(240 - 12 - text_w(&FONT_XS, hint), 30, &FONT_XS, hint, K_DIM);
+        }
+    }
     if (om_rec_state == 4 && om_count >= 1 && om_count <= 4) {   /* counting in: the beat, big, over it all */
         char t[2] = {(char)('0' + om_count), 0};
         int32_t w = text_w(&FONT_L, t);
@@ -1084,7 +1107,7 @@ static void sp_screen(int all)
         sp_cat(om_rec_state == 3 ? ". Overdubbing the loop" : om_rec_state == 2 ? ". Recording a loop" :
                ". Recording from the next bar");
     else if (proj.loop_len)
-        sp_cat(". Loop on");
+        sp_cat(". Loop on, hold REC to clear it");
     if (proj.hold)
         sp_cat(". Chord hold on");
     if (proj.sync)
