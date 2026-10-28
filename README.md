@@ -13,7 +13,7 @@ This version adds:
 - **A voice per section.** The harp and the chord each choose their own voice; the original OM-84 voice is still one of the choices.
 - **Two tracks.** The drums and the sequence (the chords held in time) start and stop separately.
 - **Loops.** A chord-progression loop recorder.
-- **Markov chord changes,** learned from what you play.
+- **A cyberpunk screen:** neon magenta, cyan and yellow on near-black, with scanlines.
 
 [![FoMni running on the FM-1 (watch on YouTube)](https://img.youtube.com/vi/pahaM6nzucE/maxresdefault.jpg)](https://www.youtube.com/watch?v=pahaM6nzucE)
 
@@ -34,8 +34,8 @@ firmware back, and an FM-1 that keeps crashing starts in a safe mode.
 | Black keys | Chord buttons (F C G, Dm Am, Em G7 E7, D7 Bb, A7 by default). Hold **LFO** for the 7th. |
 | ENV | **Shift.** Hold it and turn KNOB 1–4 for the page's second layer (see below). ENV + PLAY: both tracks at once. ENV + SEQ: back to the top of the bar. ENV + REC: overdub the loop. ENV + a black key: pick that button on the Chords page without playing it. |
 | PLAY | The **drums** track, on and off. |
-| SEQ | The **sequence** track, on and off: the chords held in time, from your loop or Markov's chord changes. The clock runs while either track does; a track started while the other plays joins in time. |
-| REC | Record a loop (see Loops below). Press again to stop early. Hold for a second to clear the loop. |
+| SEQ | The **sequence** track, on and off: your loop of chords, each held in turn. The clock runs while either track does; a track started while the other plays joins in time. |
+| REC | Count in four beats, then record a loop (see Loops below). Press again to stop early. Hold for a second to clear the loop. |
 | ARP | CHORD HOLD: the chord keeps playing after you let go (press the same button again to stop it). |
 | OCT− / OCT+ | Move the strum plate an octave. |
 | SELECT | Tempo. |
@@ -56,7 +56,6 @@ EDIT steps through all eight.
 - **FX: Sound.** Reverb (the strings' send), Space (the plate's size), Width, Chord rev (the chord's send). The drums stay dry.
   **FX again: Voices.** The chord's voice, Tone, Color and Release.
 - **SEL: Chords.** Change the chord on any black key: press the key, then turn Root (KNOB 1) and Type (KNOB 2). KNOB 3 and 4 are Transpose and Octave.
-  **SEL again: Markov.** Changes, Chaos, Learn (see below). Bars over the chord buttons show how likely each is to come next.
 
 ### Shift (ENV held)
 
@@ -82,26 +81,19 @@ watches how hard the audio is working and plays fewer harp voices when it nears 
 
 ### Loops
 
-REC records the chord changes (from the buttons, MIDI or Markov), step by step. If nothing is playing,
-recording starts at once, with the sequence; otherwise it starts on the next bar. After Bars bars
-(Rhythm page) it stops by itself and the sequence plays it back, holding each chord in turn. While it
-plays, your hands are free for the strum plate: the harp follows the loop's chords. Hold a chord button
-over a playing loop and that chord sounds instead while you hold it. The loop is saved with the rest.
-Hold REC for a second to clear it.
+1. Press **REC**. FoMni counts in four beats with a click of its own (the screen shows 1, 2, 3, 4 big),
+   whatever the drums' level. If nothing was playing, the clock starts with the count and the drums (if
+   PLAY is on) come in with the recording; if something was playing, the count starts on the next bar
+   and the recording on the bar after it.
+2. Play your chord changes on the black keys. The screen shows REC and the bar (1/2, 2/2...).
+3. After Bars bars (Rhythm page: 1, 2, 4 or 8) it stops by itself and the sequence plays it back, holding
+   each chord in turn. Your hands are free for the strum plate: the harp follows the loop's chords.
+
+Hold a chord button over a playing loop and that chord sounds instead while you hold it. The loop is saved
+with the rest. Press REC again while recording to stop early; hold REC for a second to clear the loop.
 
 **Overdub** (ENV + REC, while a loop plays): one pass round the loop, recording over it. Hold a chord
 button while it runs and that part of the loop takes the new chord.
-
-### Markov
-
-- **Changes** (Off, every 1, 2 or 4 bars): with the sequence on and no chord button held, the next chord
-  is chosen from a Markov chain over the chord buttons. It starts from the usual root moves (down a fifth,
-  up a fifth, to the relative minor, a 7th resolving) and learns from you: every change you play by
-  hand counts, and is saved. Press a button to take over; let go and Markov goes on from there.
-- **Chaos:** flattens the chain, from the likeliest moves to anything goes.
-- **Learn:** how much the changes you play count against the usual root moves.
-
-Markov holds each chord it chooses; the loop takes precedence when there is one.
 
 ### MIDI
 

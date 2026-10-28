@@ -45,7 +45,7 @@ expect hold 0
 # SYNC START (the Setup page, GLO twice): PLAY and SEQ wait for a chord, and start with it
 tap GLO
 tap GLO
-expect view 7
+expect view 6
 spin K4 1
 expect sync 1
 tap PLAY
@@ -74,7 +74,7 @@ turn PRESET 2
 expect par12 2
 # the CHORDS page: press a button, change its chord
 tap SEL
-expect view 4
+expect view 3
 tapkey b10
 spin K1 -2
 spin K2 -2
@@ -107,7 +107,7 @@ expect hold 1
 press ENV
 spin K1 -30
 release ENV
-expect par28 50
+expect par25 50
 spin K1 1
 expect par16 2
 # SHIFT + PLAY: both tracks at once; SHIFT + SEQ: from the top

@@ -30,7 +30,7 @@ static const om_param_t PARAMS[P_NPARAMS] = {
     {"Transpose", -6, 6, 0}, {"Octave", -1, 1, 0}, {"Width", 0, 100, 60}, {"MIDI out", 0, 1, 1},
     {"Model", 0, OM_NMODELS - 1, M_STRING}, {"Timbre", 0, 100, 50}, {"Color", 0, 100, 40}, {"Harp", 0, 100, 80},
     {"Chord", 0, OM_NMODELS - 1, M_MODAL}, {"Tone", 0, 100, 50}, {"Color", 0, 100, 25}, {"Release", 0, 100, 40},
-    {"Bars", 0, 3, 1}, {"Changes", 0, 3, 0}, {"Chaos", 0, 100, 30}, {"Learn", 0, 100, 50},
+    {"Bars", 0, 3, 1},
     {"Velocity", 1, 100, 80}, {"Position", 0, 100, 10}, {"LPG color", 0, 100, 50},
 };
 
@@ -65,7 +65,6 @@ static void itoa_s(int v, char *b)
 void om_param_text(int i, int v, char *b)
 {
     static const char *const ONOFF[2] = {"Off", "On"};
-    static const char *const CHG[4] = {"Off", "1 bar", "2 bars", "4 bars"};
     static const char *const BARS[4] = {"1 bar", "2 bars", "4 bars", "8 bars"};
     const char *s = 0;
     if (i == P_RHYTHM)
@@ -74,8 +73,6 @@ void om_param_text(int i, int v, char *b)
         s = ONOFF[v ? 1 : 0];
     else if (i == P_HMODEL || i == P_CMODEL)
         s = OM_MODEL_NAME[(unsigned)v < OM_NMODELS ? v : 0];
-    else if (i == P_CHANGES)
-        s = CHG[v & 3];
     else if (i == P_BARS)
         s = BARS[v & 3];
     if (s) {
@@ -117,7 +114,7 @@ void om_voicing(int root, int type, int transpose, int octave, uint8_t harp[OM_N
 }
 
 /* ------------------------------------------------------------ commands --- */
-enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_PAD, C_POLY, C_RESTART };
+enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_POLY, C_RESTART };
 #define QN 64u
 static uint32_t q[QN];
 static volatile uint32_t q_w, q_r;
@@ -132,7 +129,6 @@ static void post(uint32_t c, int a, int b)
 }
 void om_set(int p, int v) { post(C_SET, p, v); }
 void om_chord(int root, int type) { post(C_CHORD, root, type); }
-void om_pad(int pad) { post(C_PAD, pad, 0); }
 void om_gate(int on) { post(C_GATE, on, 0); }
 void om_strum(int s) { post(C_STRUM, s, 0); }
 void om_strum_v(int s, int vel) { post(C_STRUM, s, vel); }
@@ -152,8 +148,7 @@ volatile uint8_t om_playing, om_step, om_steps = 32;
 volatile uint8_t om_drum_hit;
 volatile uint8_t om_ext;
 volatile uint8_t om_drums_on, om_seq_on, om_rec_state, om_loop_pos, om_loop_done;
-volatile uint8_t om_root, om_type, om_gen, om_poly_n, om_hv_active;
-volatile int8_t om_gen_pad = -1;
+volatile uint8_t om_root, om_type, om_gen, om_poly_n, om_hv_active, om_count;
 
 static int16_t par[P_NPARAMS];
 static float tunefac = 1.0f, v1, v2, cvol, hvol, rvol, rsend, csend, sus_rate;
@@ -163,21 +158,15 @@ static uint8_t harp_n[OM_NSTR], chord_n[OM_NCHORD];
 static int gate;                               /* a chord is held: by a button, by the loop or by Markov */
 
 /* the chord by hand (a button, MIDI), the loop's, Markov's: chord_eval() picks the one that sounds */
-static int live_root, live_type, live_gate, live_pad = 1;
+static int live_root, live_type, live_gate;
 static int lp_root = -1, lp_type, lp_gate;
-static int gen_pad = -1;
 
-/* the project's, linked (om_link); the engine's own until then */
-static uint8_t own_root[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9}, own_type[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2};
-static uint8_t own_learn[OM_NPADS * OM_NPADS], own_loop[OM_LOOP_MAX], own_len;
-static const uint8_t *pad_root = own_root, *pad_type = own_type, *learn = own_learn;
+/* the project's loop, linked (om_link); the engine's own until then */
+static uint8_t own_loop[OM_LOOP_MAX], own_len;
 static uint8_t *loop = own_loop, *loop_len = &own_len;
 
-void om_link(const uint8_t *pr, const uint8_t *pt, const uint8_t *lr, uint8_t *lp, uint8_t *ll)
+void om_link(uint8_t *lp, uint8_t *ll)
 {
-    pad_root = pr;
-    pad_type = pt;
-    learn = lr;
     loop = lp;
     loop_len = ll;
 }
@@ -411,19 +400,22 @@ static void retune(void)
     om_type = (uint8_t)type;
 }
 
-/* ---- the sequence: the loop and Markov's chord changes */
+/* ---- the sequence: the loop */
 static int drums_on, seq_on;
+/* recording: RS_ARM waits for a bar to count in, RS_COUNT counts four beats, RS_WAIT waits for the bar after
+ * them, RS_REC records (rec_state 2, as before; overdubbing too) */
+enum { RS_IDLE, RS_WAIT, RS_REC, RS_ARM, RS_COUNT };
 static int rec_state, rec_pos, rec_len;           /* recording: its step, its length */
+static int count_left, count_top;                 /* the count-in's steps to go; from a stop (the loop at the top) */
+static float click_env, click_ph, click_inc;      /* the count-in's click */
 static int rec_dub, rec_base;                      /* overdubbing (over the loop playing), from the loop's step */
 static int in_step;                                /* do_step() running: what happens is on its step */
 static int strike;                                 /* the next chord_eval strikes the chord (a button pressed) */
 static uint32_t gstep, loop_origin;               /* steps since the clock started; the loop's first */
 static int lp_valid;                              /* the loop's chord state known at its position */
-static int bars_left;                             /* Markov: bars to the next chord change */
 static int pulse;                                 /* MIDI clock, 0..5 within a step */
 
 static int loop_on(void) { return seq_on && *loop_len && (rec_state != 2 || rec_dub); }
-static int gen_on(void) { return seq_on && par[P_CHANGES] && !loop_on(); }
 
 /* ---- the loop: a byte a step, the chord: 0 none, 0x80 + root * 9 + type, 0xFF let go */
 static void rec_put(int code)
@@ -440,7 +432,7 @@ static void rec_put(int code)
     loop[(at + rec_base) % rec_len] = (uint8_t)code;   /* (overdubbing: from where the loop was) */
 }
 
-/* the chord that sounds: a button's (or MIDI's) while one is held, else the loop's, else Markov's. Struck
+/* the chord that sounds: a button's (or MIDI's) while one is held, else the loop's. Struck
  * when it starts or changes, let go when it ends */
 static void chord_eval(void)
 {
@@ -450,11 +442,6 @@ static void chord_eval(void)
             r = lp_root;
             t = lp_type;
             g = lp_gate;
-            gen = 1;
-        } else if (gen_on() && gen_pad >= 0) {
-            r = pad_root[gen_pad] % 12;
-            t = pad_type[gen_pad] < CH_NTYPES ? pad_type[gen_pad] : 0;
-            g = 1;
             gen = 1;
         }
     }
@@ -473,60 +460,6 @@ static void chord_eval(void)
     strike = 0;
     gate = g;
     om_gen = (uint8_t)gen;
-    om_gen_pad = (int8_t)(!live_gate && gen_on() ? gen_pad : -1);
-}
-
-/* the probabilities of each button after `from`: a prior of root motions, the changes played, learnt */
-static void markov_w(int from, float chaos, float *w)
-{
-    static const float MOTION[12] = {0.6f, 0.5f, 2.2f, 2.6f, 1.4f, 5.0f, 0.3f, 4.0f, 1.4f, 3.0f, 2.2f, 0.5f};
-    int j, fr = pad_root[from] % 12, ft = pad_type[from];
-    float e = 2.2f - 2.0f * chaos, sum = 0.0f;
-    for (j = 0; j < OM_NPADS; j++) {
-        int d = ((pad_root[j] - fr) % 12 + 12) % 12, tt = pad_type[j];
-        float x = MOTION[d];
-        if (j == from)
-            x = 0.25f;
-        else if (d == 0 && tt == ft)
-            x = 0.1f;                              /* the same chord on another button */
-        if ((ft == CH_7 || ft == CH_M7) && d == 5)
-            x *= 2.0f;                             /* a dominant resolves */
-        if (tt == CH_MAJ || tt == CH_MIN)
-            x *= 1.3f;
-        x += 0.06f * (float)par[P_LEARN] * (float)learn[from * OM_NPADS + j];
-        w[j] = fm_powf(x, e);
-        sum += w[j];
-    }
-    for (j = 0; j < OM_NPADS; j++)
-        w[j] /= sum;
-}
-
-void om_markov_probs(int from, int chaos, float p[OM_NPADS])
-{
-    markov_w((unsigned)from < OM_NPADS ? from : 1, (float)chaos * 0.01f, p);
-}
-
-static int pick(const float *w, int n)          /* an index by weight (the weights sum to 1, or any > 0) */
-{
-    float sum = 0.0f, u;
-    int i;
-    for (i = 0; i < n; i++)
-        sum += w[i];
-    u = mv_randf() * sum;
-    for (i = 0; i < n - 1; i++) {
-        u -= w[i];
-        if (u < 0.0f)
-            return i;
-    }
-    return n - 1;
-}
-
-static void markov_change(void)
-{
-    float w[OM_NPADS];
-    int from = gen_pad >= 0 ? gen_pad : (live_pad >= 0 ? live_pad : 1);
-    markov_w(from, (float)par[P_CHAOS] * 0.01f, w);
-    gen_pad = pick(w, OM_NPADS);
 }
 
 static void rec_begin(void)
@@ -646,19 +579,39 @@ static void do_step(void)
     const om_rhythm_t *r = &OM_RHYTHM[rh];
     int half = r->len / 2;
     in_step = 1;
-    if (step % half == 0) {                       /* a bar */
-        if (rec_state == 1)
-            rec_begin();
-        if (gen_on() && !live_gate) {
-            if (gen_pad < 0) {
-                gen_pad = live_pad >= 0 ? live_pad : 1;   /* Markov takes over from the button played last */
-                bars_left = 1 << (par[P_CHANGES] - 1);
-            } else if (--bars_left <= 0) {
-                markov_change();
-                bars_left = 1 << (par[P_CHANGES] - 1);
-            }
-            chord_eval();
+    if (rec_state == RS_ARM && step % half == 0) {   /* playing: the count from this bar */
+        rec_state = RS_COUNT;
+        count_left = 16;
+        count_top = 0;
+        om_rec_state = 4;
+    }
+    if (rec_state == RS_COUNT) {                  /* four beats, a click each (higher on the first) */
+        if (!(count_left & 3)) {
+            om_count = (uint8_t)(5 - count_left / 4);
+            click_env = 1.0f;
+            click_ph = 0.0f;
+            click_inc = (om_count == 1 ? 2000.0f : 1300.0f) / OM_SR;
         }
+        if (--count_left <= 0) {
+            rec_state = RS_WAIT;                   /* the loop from the next bar */
+            om_rec_state = 1;
+            if (count_top) {                       /* from a stop: the next step is the top */
+                step = 0;
+                gstep = 0;
+                loop_origin = 0;
+                if (!om_ext)
+                    midi(0xFA, 0, 0);
+                in_step = 0;
+                return;
+            }
+        } else if (count_top) {                    /* from a stop: only the click while it counts */
+            in_step = 0;
+            return;
+        }
+    }
+    if (step % half == 0) {                       /* a bar */
+        if (rec_state == RS_WAIT)
+            rec_begin();
     }
     if (drums_on)
         drums_hit(r->drum[step]);
@@ -837,11 +790,6 @@ static void apply(int p, int v)
         if (!v)
             om_midi_out(0xB0, 123, 0);            /* all notes off, as it goes quiet */
         break;
-    case P_CHANGES:
-        if (!v)
-            gen_pad = -1;
-        chord_eval();
-        break;
     default: break;
     }
 }
@@ -908,7 +856,6 @@ static void play_start(int from_top)
         gstep = 0;
         loop_origin = 0;
         lp_valid = 0;
-        gen_pad = -1;
     }
     pulse_left = 0.0f;
     om_playing = 1;
@@ -918,7 +865,6 @@ static void play_start(int from_top)
 
 static void seq_release(void)                    /* the sequence stopped: what it held lets go */
 {
-    gen_pad = -1;
     chord_eval();
 }
 
@@ -981,11 +927,6 @@ static void drain(void)
             live_type = b < CH_NTYPES ? b : 0;
             chord_eval();
             break;
-        case C_PAD:
-            live_pad = a < OM_NPADS ? a : -1;
-            if (live_pad >= 0 && gen_pad >= 0)
-                gen_pad = live_pad;                 /* Markov goes on from the button played */
-            break;
         case C_GATE:
             live_gate = a;
             strike = a;                             /* a button pressed: its chord struck, even the same one */
@@ -1003,14 +944,17 @@ static void drain(void)
             break;
         case C_REC:
             if (a == OM_REC_START) {
-                if (!om_playing) {
+                if (!om_playing) {                  /* the clock starts: four beats counted, then the top */
                     track(1, 1);
-                    rec_state = 1;
-                    rec_begin();                    /* the clock starts at the top: the loop with it */
+                    rec_state = RS_COUNT;
+                    count_left = 16;
+                    count_top = 1;
+                    om_count = 1;
+                    om_rec_state = 4;
                 } else {
                     if (!seq_on)
                         track(1, 1);
-                    rec_state = 1;                  /* from the next bar */
+                    rec_state = RS_ARM;             /* counted in from the next bar */
                     om_rec_state = 1;
                 }
             } else if (a == OM_REC_OVERDUB) {
@@ -1291,6 +1235,18 @@ static void render_chunk(int32_t *out, uint32_t n, float gain)
     render_strings(n);
     render_chord(n);
     render_drums(n);
+    if (click_env > 1e-4f) {                      /* the count-in's click: dry, whatever the drums' level */
+        for (j = 0; j < n; j++) {
+            float o = mv_sin1(click_ph) * click_env * 0.35f;
+            click_ph += click_inc;
+            if (click_ph >= 1.0f)
+                click_ph -= 1.0f;
+            click_env *= 0.9985f;
+            mixl[j] += o;
+            mixr[j] += o;
+        }
+        click_env = fm_flush(click_env);
+    }
     for (j = 0; j < n; j++) {
         float wl, wr, l, r;
         reverb(send[j] * 0.5f, &wl, &wr);

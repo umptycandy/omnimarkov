@@ -2,8 +2,8 @@
 /* The instrument (dsp/omni.c) on its own: the strum plate's voicing against the OM-108 owner's
  * manual (p.49), the chord and bass registers, envelopes that end, the rhythm's timing, and an output
  * that stays finite and inside full scale with everything playing at once. Then the voices (each model
- * sounds and ends), the two tracks, a loop of chords recorded and played back, Markov's chord changes,
- * and that nothing ever plays a bass or a melody. */
+ * sounds and ends), the two tracks, the count-in and a loop of chords recorded and played back, and
+ * that nothing ever plays a bass or a melody. */
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -244,21 +244,41 @@ int main(void)
         run(2);
         check("both off: the clock stops", !om_playing);
     }
-    {   /* a loop: one bar (16 steps at 120: 2 s) of C, then Am from the bar's middle; played back with no
-         * button held, the chords held in turn; a D held over it sounds instead; overdubbed, the loop is D */
-        static uint8_t lp[OM_LOOP_MAX], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
-                                         ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
-        int b, seen_c = 0, seen_a = 0, held = 1;
+    {   /* a loop: four beats counted in (2 s at 120: a click each, nothing else), then one bar of C, then Am
+         * from the bar's middle; played back with no button held, the chords held in turn; a D held over it
+         * sounds instead; overdubbed, the loop is D */
+        static uint8_t lp[OM_LOOP_MAX], ll;
+        int b, seen_c = 0, seen_a = 0, held = 1, beats = 0, last = 0, steps_during = 0;
         om_init();
-        om_link(rt, ty, lr, lp, &ll);
+        om_link(lp, &ll);
         om_set(P_TEMPO, 120);
         om_set(P_BARS, 0);
+        om_play(1);                                     /* (the drums on: they wait for the count) */
+        run(2);
+        om_play(0);
+        run(2);
         om_chord(0, CH_MAJ);
         om_gate(1);
+        om_drum_hit = 0;
         om_rec(OM_REC_START);
         run(2);
-        check("REC, stopped: the sequence starts, recording", om_seq_on && om_rec_state == 2);
-        run(44100 / 256);                               /* 1 s: half the bar */
+        check("REC, stopped: counting in, the sequence on", om_seq_on && om_rec_state == 4 && om_count == 1);
+        for (b = 0; b < 2 * 44100 / 256 - 4 && om_rec_state == 4; b++) {
+            run(1);
+            if (om_count != last) {
+                beats++;
+                last = om_count;
+            }
+            steps_during |= om_step != 0;
+        }
+        /* the fourth beat's last sixteenth begins at 1.875 s; the top is at 2 s */
+        check("... four beats (1, 2, 3, 4), the last beginning at 1.5 s", beats == 4 && last == 4 &&
+              b * 256 > 44100 * 18 / 10 - 512 && b * 256 < 44100 * 19 / 10);
+        check("... no step of the rhythm while it counts", !steps_during);
+        for (b = 0; b < 40 && om_rec_state != 2; b++)
+            run(1);
+        check("... then recording, from the top, at 2 s", om_rec_state == 2 && om_loop_pos == 0 && b > 2 && b < 30);
+        run(44100 / 256 - 8);                           /* 1 s: half the bar */
         om_chord(9, CH_MIN);
         om_gate(1);
         run(44100 / 256 + 10);
@@ -273,6 +293,19 @@ int main(void)
         }
         check("played back: C, then Am, with no button held", seen_c && seen_a && om_gen);
         check("... each chord held all the while", held);
+        {   /* REC again, playing: armed for the next bar, then four beats counted over the loop */
+            int counted = 0;
+            om_rec(OM_REC_START);
+            run(2);
+            check("REC, playing: waiting for the bar", om_rec_state == 1);
+            for (b = 0; b < 5 * 44100 / 256 && om_rec_state != 2; b++) {   /* (the bar: up to 2 s; the count: 2 s) */
+                run(1);
+                counted |= om_rec_state == 4;
+            }
+            check("... counted in, then recording", counted && om_rec_state == 2);
+            om_rec(OM_REC_STOP);
+            run(2);
+        }
         om_chord(2, CH_MAJ);
         om_gate(1);
         run(10);
@@ -302,46 +335,6 @@ int main(void)
         run(10);
         check("SEQ off: the chord it held lets go", om_chord_level < 0.9f);
         run(2);
-    }
-    {   /* Markov: the probabilities, what is learnt, and the changes it makes */
-        static uint8_t lp[OM_LOOP_MAX], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
-                                         ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
-        float p[OM_NPADS], q2[OM_NPADS], sum = 0.0f;
-        int i, b, changes = 0, last = -1, s, plucks = 0, held = 1;
-        om_init();
-        om_link(rt, ty, lr, lp, &ll);
-        om_markov_probs(1, 30, p);
-        for (i = 0; i < OM_NPADS; i++)
-            sum += p[i];
-        check("Markov: from C the probabilities sum to 1", fabsf(sum - 1.0f) < 1e-4f);
-        check("... G (up a fifth) and F (down a fifth) the likeliest, C itself unlikely",
-              p[2] > p[4] && p[0] > p[4] && p[1] < p[2] * 0.2f);
-        lr[1 * OM_NPADS + 10] = 20;                     /* C -> A7, played twenty times */
-        om_markov_probs(1, 30, q2);
-        check("... a change played often grows likelier", q2[10] > 3.0f * p[10]);
-        om_markov_probs(1, 100, q2);
-        check("... chaos 100: nearer even", q2[10] < 0.5f && q2[1] > p[1]);
-        lr[1 * OM_NPADS + 10] = 0;
-        om_set(P_TEMPO, 240);
-        om_set(P_CHANGES, 1);
-        om_seq(1);
-        run(10);
-        for (b = 0; b < 8 * 44100 / 256; b++) {
-            run(1);
-            if (om_gen_pad != last) {
-                changes++;
-                last = om_gen_pad;
-            }
-            held &= om_chord_level > 0.5f;
-            for (s = 0; s < OM_NSTR; s++)
-                plucks += om_str_level[s] > 0.0f;
-        }
-        check("CHANGES every bar, no button held: the chord changes", changes >= 6 && om_gen);
-        check("... each held", held);
-        check("... and nothing else plays: no strings plucked by themselves", plucks == 0);
-        om_seq(0);
-        run(2);
-        check("SEQ off: Markov stops", om_gen_pad < 0 && !om_gen);
     }
     check("no bass, ever: nothing on channel 3", bass_on_n == 0 && chord_on_n > 10);
     check("MIDI out sent notes", midi_n > 100);

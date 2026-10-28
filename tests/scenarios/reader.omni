@@ -109,3 +109,11 @@ midi 81 43 00
 # WHERE: everything again
 where
 said Chords page, button 7
+# REC: the count-in said, then that it records
+tap REC
+said COUNT IN 4 BEATS
+wait 2600
+said Recording
+tap REC
+said RECORDING STOPPED
+tap SEQ

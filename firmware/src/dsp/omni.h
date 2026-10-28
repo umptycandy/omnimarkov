@@ -6,21 +6,19 @@
  *           (the OM-84 / OM-108 strumplate, extended down one octave to fill 16 keys).
  *           Two voices, as the OM-84's: VOICE 1 shimmers (its tremolo), VOICE 2 is plain.
  *   CHORD   the chord itself (3 notes, F#3..F4), held: while a chord pad is down, or while the
- *           sequence holds it (a loop, Markov). No bass, no melody: the chord, held.
+ *           sequence holds it (a loop). No bass, no melody: the chord, held.
  *   RHYTHM  ten OM-84 rhythms' drums: bass drum, claves, hi-hat, cymbal, snare.
  *
  * The harp and the chord each play one of six voices (dsp/models.h): the OM-84's own, or Rings' and
  * Plaits' string, modal resonator, virtual analog, FM and wavefolder. The harp's are a pool of up to
  * twelve voices (eight to start with; the device's governor, main_fm1.c, sets how many the CPU affords).
  *
- * Two tracks share the clock: the DRUMS and the SEQUENCE (the chords held in time: a recorded loop,
- * or Markov's chord changes). Either starts and stops on its own; the clock runs while either does.
+ * Two tracks share the clock: the DRUMS and the SEQUENCE (a recorded loop of chords, held in time).
+ * Either starts and stops on its own; the clock runs while either does.
  *
- *   LOOP    REC records the chord changes, a step at a time, for 1..8 bars, and the sequence then holds
- *           them in turn. A chord held over the loop sounds instead; overdubbing, it replaces the loop's.
- *   MARKOV  chord changes chosen from a Markov chain over the chord buttons: a prior of the usual root
- *           motions (down a fifth, up a fifth, to the relative minor...) plus every change played by
- *           hand, learnt. CHAOS flattens the chain.
+ *   LOOP    REC counts in four beats (a click of its own), then records the chord changes, a step at a
+ *           time, for 1..8 bars; the sequence then holds them in turn. A chord held over the loop sounds
+ *           instead; overdubbing, it replaces the loop's.
  *
  * The waves, envelopes and rhythm patterns follow Chordian (Jan125/pb.chordian, CC0), an OM-84
  * emulator; dsp/om_data.h and dsp/om_drums.h are generated from it (tools/import_chordian.py).
@@ -53,9 +51,7 @@ enum {
     P_TRANSPOSE, P_OCTAVE, P_WIDTH, P_MIDI,           /* semitones, harp octave, stereo width, MIDI out */
     P_HMODEL, P_HTIMBRE, P_HCOLOR, P_HLEVEL,          /* the harp's voice (M_*), its two knobs, its level */
     P_CMODEL, P_CTIMBRE, P_CCOLOR, P_CREL,            /* the chord's voice, its two knobs, its release */
-    P_BARS, P_CHANGES, P_CHAOS, P_LEARN,              /* a loop's length (1, 2, 4, 8 bars); Markov: chord changes
-                                                       * (off, every 1, 2, 4 bars), chaos (the chain's temperature),
-                                                       * how much the changes played count */
+    P_BARS,                                           /* a loop's length (1, 2, 4, 8 bars) */
     /* the SHIFT layer (ENV held): */
     P_HVEL, P_HPOS, P_LPGC,                           /* the harp's velocity, strike position (Modal), the LPG's colour */
     P_NPARAMS
@@ -83,26 +79,25 @@ const om_rhythm_t *om_rhythm(int i);
 
 /* commands (main loop -> render) */
 void om_init(void);
-/* the project's chord buttons, learnt changes ([from][to] counts) and loop (a byte a step, *loop_len steps),
- * which the engine reads (and, recording, writes) in place. Before the audio starts; unlinked, its own */
-void om_link(const uint8_t *pad_root, const uint8_t *pad_type, const uint8_t *learn, uint8_t *loop, uint8_t *loop_len);
+/* the project's loop (a byte a step, *loop_len steps), which the engine plays (and, recording, writes) in
+ * place. Before the audio starts; unlinked, its own */
+void om_link(uint8_t *loop, uint8_t *loop_len);
 void om_set(int param, int value);
 void om_chord(int root, int type);             /* the chord the harp, chord and bass play from now on */
-void om_pad(int pad);                          /* ... and the button it came from (-1: not a button), for Markov */
 void om_gate(int on);                          /* a chord pad held (1) / released (0): the chord section */
 void om_strum(int string);                     /* pluck string 0..15 */
 void om_strum_v(int string, int vel);          /* ... with a velocity, 1..127 */
 void om_play(int on);                          /* the drums track: start / stop (the clock from the top if it was stopped) */
 void om_seq(int on);                           /* the sequence track: start / stop, the same way */
 enum { OM_REC_START, OM_REC_STOP, OM_REC_CLEAR, OM_REC_OVERDUB };
-void om_rec(int cmd);                          /* START: record a loop (now if stopped, else from the next bar);
+void om_rec(int cmd);                          /* START: four beats counted in (a click), then record a loop (stopped:
+                                                * the count from now, the loop from the top; playing: the count from
+                                                * the next bar, the loop from the bar after it);
                                                 * STOP: keep what is recorded; CLEAR: no loop; OVERDUB: once round
                                                 * the playing loop, recording over it (a chord held rewrites it) */
 void om_restart(void);                         /* the clock back to the top (the tracks keep playing) */
 void om_poly(int voices);                      /* the harp's voices, 2..OM_HV_MAX (the CPU governor) */
 void om_panic(void);                           /* everything quiet, now */
-/* the probability of each chord button coming next after button `from` (the chord changes' chain) */
-void om_markov_probs(int from, int chaos, float p[OM_NPADS]);
 /* MIDI clock in (the main loop passes it on): OM_CLK_TICK (F8), START, CONTINUE, STOP. While ticks keep
  * coming (the last within ~0.6 s) they drive the rhythm, 6 a step, and its own tempo stands aside;
  * otherwise the rhythm sends clock (24 a quarter note) and start / stop, with MIDI out on. */
@@ -123,12 +118,13 @@ extern volatile uint8_t om_playing, om_step, om_steps;
 extern volatile uint8_t om_drum_hit;           /* bits: drums hit since the UI last cleared it */
 extern volatile uint8_t om_ext;                /* 1: following an external MIDI clock */
 extern volatile uint8_t om_drums_on, om_seq_on; /* the tracks */
-extern volatile uint8_t om_rec_state;          /* 0 no, 1 armed (waiting for the bar), 2 recording, 3 overdubbing */
+extern volatile uint8_t om_rec_state;          /* 0 no, 1 armed (waiting for the bar), 2 recording, 3 overdubbing,
+                                                * 4 counting in */
+extern volatile uint8_t om_count;              /* counting in: the beat, 1..4 */
 extern volatile uint8_t om_loop_pos;           /* the loop's step playing (or recording) */
 extern volatile uint8_t om_loop_done;          /* counts loops recorded or cleared: the project changed */
 extern volatile uint8_t om_root, om_type;      /* the chord sounding: a button's, the loop's or Markov's */
-extern volatile int8_t om_gen_pad;             /* the button Markov chose, -1 none */
-extern volatile uint8_t om_gen;                /* 1: the chord comes from the loop or Markov (no button held) */
+extern volatile uint8_t om_gen;                /* 1: the chord comes from the loop (no button held) */
 extern volatile uint8_t om_poly_n;             /* the harp's voices now */
 extern volatile uint8_t om_hv_active;          /* ... and how many of them sound */
 /* the notes a chord gives: harp strings (16, with transpose and octave), chord (3) and bass root */

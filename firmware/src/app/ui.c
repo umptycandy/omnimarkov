@@ -4,27 +4,26 @@
  *
  *   white keys     the strum plate: each one plucks a string of the chord
  *   black keys     the chord buttons; hold LFO for the 7th
- *   ENV            SHIFT, held: KNOB 1-4 turn the page's second layer (Play, Voices, Rhythm, Markov);
+ *   ENV            SHIFT, held: KNOB 1-3 on the Play page turn Velocity, Position, LPG color;
  *                  + PLAY both tracks on / off together, + SEQ back to the top, + a black key picks it for the
  *                  CHORDS page without playing it, + REC overdubs the loop playing
  *   PLAY           the drums on / off        SEQ   the sequence on / off (the chords held in time: the loop,
- *                  Markov's changes); the clock runs while either does (SYNC START: they wait for a chord)
+ *                  a loop of chords); the clock runs while either does (SYNC START: they wait for a chord)
  *   REC            record a loop (again: stop it); held 1 s: the loop is cleared
  *   ARP            CHORD HOLD                OCT- / OCT+   the plate's octave
  *   HOME FX SEL GLO   the pages, two each (press again for the second): PLAY / MIX, SOUND / VOICES,
- *                  CHORDS / MARKOV, RHYTHM / SETUP. EDIT steps through all eight
+ *                  CHORDS, RHYTHM / SETUP. EDIT steps through all seven
  *   SELECT tempo   ALGORITHM rhythm   PRESETS transpose   KNOB 1-4 the page's four values
  *   SAVE           saves (it also saves by itself, a few seconds after a change, when quiet) */
 
-enum { V_PLAY, V_MIX, V_RHYTHM, V_MARKOV, V_PADS, V_SOUND, V_VOICES, V_SETUP, NVIEWS };
-static const char *const VIEW_NAME[NVIEWS] = {"Play", "Mix", "Rhythm", "Markov", "Chords", "Sound", "Voices", "Setup"};
+enum { V_PLAY, V_MIX, V_RHYTHM, V_PADS, V_SOUND, V_VOICES, V_SETUP, NVIEWS };
+static const char *const VIEW_NAME[NVIEWS] = {"Play", "Mix", "Rhythm", "Chords", "Sound", "Voices", "Setup"};
 /* the four knobs of each page: a parameter, or one of these */
 enum { K_PADROOT = 100, K_PADTYPE, K_LEDS, K_SYNC, K_NONE };
 static const uint8_t VIEW_KNOB[NVIEWS][4] = {
     {P_HMODEL, P_HTIMBRE, P_HCOLOR, P_SUSTAIN},
     {P_HLEVEL, P_CHORD, P_RHYVOL, K_NONE},
     {P_RHYTHM, P_TEMPO, P_BARS, P_SWING},
-    {P_CHANGES, P_CHAOS, P_LEARN, K_NONE},
     {K_PADROOT, K_PADTYPE, P_TRANSPOSE, P_OCTAVE},
     {P_REVERB, P_SPACE, P_WIDTH, P_CREV},
     {P_CMODEL, P_CTIMBRE, P_CCOLOR, P_CREL},
@@ -39,35 +38,34 @@ static const uint8_t VIEW_SHIFT[NVIEWS][4] = {
     {K_NONE, K_NONE, K_NONE, K_NONE},
     {K_NONE, K_NONE, K_NONE, K_NONE},
     {K_NONE, K_NONE, K_NONE, K_NONE},
-    {K_NONE, K_NONE, K_NONE, K_NONE},
 };
 /* the page buttons: each opens its first page, or (pressed on it) its second */
-static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_HOME, B_GLO, B_SEL, B_SEL, B_FX, B_FX, B_GLO};
+static const uint8_t VIEW_BTN[NVIEWS] = {B_HOME, B_HOME, B_GLO, B_SEL, B_FX, B_FX, B_GLO};
 
 static const uint8_t WHITE_K[OM_NSTR] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
 static const uint8_t BLACK_K[NPADS] = {1, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25};
 
-/* the screen's colours: light and friendly. Cream paper, warm brown ink, one soft colour per section
- * (harp coral, chords teal, rhythm pink), each with a pale tint for the shapes at rest */
-#define K_BG RGB(250, 244, 232)
-#define K_PANEL RGB(236, 228, 212)
-#define K_LINE RGB(216, 205, 186)
-#define K_DIM RGB(150, 136, 118)
-#define K_TEXT RGB(72, 58, 48)
-#define K_WHITE RGB(255, 255, 255)
-#define K_HARP RGB(242, 120, 72)
-#define K_HARP_T RGB(248, 208, 184)
-#define K_CHORD RGB(38, 166, 154)
-#define K_CHORD_T RGB(196, 230, 222)
-#define K_RHY RGB(232, 88, 128)
-#define K_RHY_T RGB(246, 206, 218)
+/* the screen's colours: a night city. Near-black violet, pale ink, one neon a section (harp magenta, chords
+ * cyan, rhythm and recording yellow), each with a dark tint for the shapes at rest; dark ink on the neons */
+#define K_BG RGB(8, 6, 18)
+#define K_SCAN RGB(14, 10, 30)
+#define K_PANEL RGB(22, 16, 42)
+#define K_LINE RGB(52, 38, 88)
+#define K_DIM RGB(124, 108, 176)
+#define K_TEXT RGB(232, 236, 255)
+#define K_INK RGB(8, 6, 18)
+#define K_HARP RGB(255, 46, 170)
+#define K_HARP_T RGB(74, 18, 66)
+#define K_CHORD RGB(0, 238, 255)
+#define K_CHORD_T RGB(8, 58, 78)
+#define K_RHY RGB(255, 228, 0)
+#define K_RHY_T RGB(70, 62, 10)
 
 static struct {
     uint8_t view;
     uint32_t btn, keys, btn_used;
     uint32_t enc_t[NE];
     int8_t pad;                        /* the chord button sounding (or held), -1 none, -2 a chord from MIDI */
-    int8_t last_pad;                   /* the chord button played last (Markov learns the changes) */
     uint8_t pad_sel;                   /* the chord button the CHORDS page edits */
     uint8_t npads_down;
     uint8_t root, type;                /* the chord (before transpose) */
@@ -297,21 +295,6 @@ static void sync_go(void)
     ui.armed = 0;
 }
 
-/* Markov learns the change from the chord before (a button's, or the one it chose itself) to this one */
-static void learn(int p)
-{
-    int from = ui.pad >= 0 ? ui.pad : om_gen_pad >= 0 ? om_gen_pad : ui.last_pad, i;
-    uint8_t *row;
-    if (from < 0 || from == p)
-        return;
-    row = &proj.learn[from * NPADS];
-    if (row[p] == 255u)                          /* full: the row halves, the newer changes count more */
-        for (i = 0; i < NPADS; i++)
-            row[i] >>= 1;
-    row[p]++;
-    mark_dirty();
-}
-
 static void pad_down(int p)
 {
     int type = proj.pad_type[p];
@@ -330,8 +313,6 @@ static void pad_down(int p)
     }
     if (ui.view == V_PADS)
         ui.pad_sel = (uint8_t)p;
-    learn(p);
-    ui.last_pad = (int8_t)p;
     if (proj.hold && ui.pad == p && !ui.npads_down && ui.root == proj.pad_root[p] && ui.type == type) {
         ui.pad = -1;                             /* HOLD: the sounding button again lets it go */
         om_gate(0);
@@ -342,7 +323,6 @@ static void pad_down(int p)
     ui.pad = (int8_t)p;
     ui.root = proj.pad_root[p];
     ui.type = (uint8_t)type;
-    om_pad(p);
     sound_chord();
     om_gate(1);
     if (ui.armed)                                /* SYNC START: the tracks start with the chord */
@@ -403,7 +383,7 @@ static void button(int b)
     switch (b) {
     case B_HOME: set_view(ui.view == V_PLAY ? V_MIX : V_PLAY); break;
     case B_FX: set_view(ui.view == V_SOUND ? V_VOICES : V_SOUND); break;
-    case B_SEL: set_view(ui.view == V_PADS ? V_MARKOV : V_PADS); break;
+    case B_SEL: set_view(V_PADS); break;
     case B_GLO: set_view(ui.view == V_RHYTHM ? V_SETUP : V_RHYTHM); break;
     case B_EDIT: set_view((ui.view + 1) % NVIEWS); break;
     case B_PLAY:
@@ -443,7 +423,7 @@ static void button(int b)
             say("RECORDING", "STOPPED");
         } else {
             om_rec(OM_REC_START);
-            say("RECORD", om_playing ? "FROM THE NEXT BAR" : "NOW");
+            say("COUNT IN", om_playing ? "FROM THE NEXT BAR" : "4 BEATS");
         }
         break;
     case B_ARP:
@@ -522,7 +502,6 @@ static void kb_update(void)
         ui.root = (uint8_t)root;
         ui.type = (uint8_t)type;
         ui.pad = -2;                             /* a chord from MIDI: no button lit */
-        om_pad(-1);
         sound_chord();
         om_gate(1);
         if (ui.armed)
@@ -684,6 +663,7 @@ static void draw_header(void)
         return;
     ui.sig[0] = h;
     cv_begin(240, HDR_H, K_BG);
+    cv_rect(0, HDR_H - 2, 240, 1, K_HARP);                /* a neon rule under the header */
     if (msg) {
         int32_t x = cv_text(10, 6, &FONT_B, ui.msg[0], K_TEXT);
         cv_text(x + 8, 6, &FONT_B, ui.msg[1], K_HARP);
@@ -723,11 +703,12 @@ static void draw_header(void)
         }
         x = 18 + text_w(&FONT_B, VIEW_NAME[ui.view]);
         if (shift_on())                           /* little tags: SHIFT held */
-            x = tag(x, xr, "SHIFT", K_TEXT, K_WHITE);
+            x = tag(x, xr, "SHIFT", K_TEXT, K_INK);
         if (om_rec_state == 3)                    /* overdubbing; recording (blinks while it waits for the bar) */
-            x = tag(x, xr, "DUB", K_RHY, K_WHITE);
+            x = tag(x, xr, "DUB", K_RHY, K_INK);
         else if (om_rec_state)
-            x = tag(x, xr, "REC", om_rec_state == 2 || blink ? K_RHY : K_RHY_T, K_WHITE);
+            x = tag(x, xr, om_rec_state == 4 ? "COUNT" : "REC", om_rec_state == 2 || om_rec_state == 4 || blink ? K_RHY : K_RHY_T,
+                    om_rec_state == 2 || om_rec_state == 4 || blink ? K_INK : K_RHY);
         else if (proj.loop_len)
             x = tag(x, xr, "LOOP", K_CHORD_T, K_CHORD);
         if (proj.hold)
@@ -747,14 +728,12 @@ static uint16_t mix(uint16_t a, uint16_t b, int t)   /* t 0..16: a -> b */
     return (uint16_t)(r << 11 | g << 5 | bl);
 }
 
-/* the chord button lit: the one held, or the one the loop or Markov plays */
+/* the chord button lit: the one held, or the one the loop plays */
 static int pad_lit(void)
 {
     int p;
     if (ui.pad >= 0 || ui.pad == -2 || !om_gen)
         return ui.pad;
-    if (om_gen_pad >= 0)
-        return om_gen_pad;
     for (p = 0; p < NPADS; p++)
         if (proj.pad_root[p] == om_root && proj.pad_type[p] == om_type)
             return p;
@@ -815,24 +794,6 @@ static void draw_rhythm(int32_t y0, int32_t h)
     }
 }
 
-/* MARKOV: how likely each button is to come next, a bar over each */
-static void draw_markov(int32_t y0, int32_t h)
-{
-    float pr[NPADS];
-    int p, from = pad_lit();
-    if (from < 0)
-        from = ui.last_pad >= 0 ? ui.last_pad : 1;
-    om_markov_probs(from, proj.par[P_CHAOS], pr);
-    for (p = 0; p < NPADS; p++) {
-        int32_t x = 4 + p * 20 + ((p >= 3) + (p >= 5) + (p >= 8) + (p >= 10)) * 3, bh = (int32_t)(pr[p] * (float)h * 1.6f + 0.5f);
-        if (bh > h)
-            bh = h;
-        cv_round(x + 3, y0, 12, h, 3, K_PANEL);
-        if (bh > 1)
-            cv_round(x + 3, y0 + h - bh, 12, bh, 3, proj.par[P_CHANGES] ? K_RHY : K_RHY_T);
-    }
-}
-
 static void draw_pads(int32_t y0)
 {
     int p, lit = pad_lit();
@@ -844,8 +805,8 @@ static void draw_pads(int32_t y0)
             cv_round(x - 1, y0 - 1, 20, 30, 6, K_TEXT);
         cv_round(x, y0, 18, 28, 5, on ? K_CHORD : K_CHORD_T);
         chord_name(proj.pad_root[p], 0, t);
-        text_c(x + 9, y0 + 1, &FONT_XS, t, on ? K_WHITE : K_TEXT);
-        text_c(x + 9, y0 + 13, &FONT_XS, proj.pad_type[p] ? OM_TYPE_NAME[proj.pad_type[p]] : "", on ? K_WHITE : K_CHORD);
+        text_c(x + 9, y0 + 1, &FONT_XS, t, on ? K_INK : K_TEXT);
+        text_c(x + 9, y0 + 13, &FONT_XS, proj.pad_type[p] ? OM_TYPE_NAME[proj.pad_type[p]] : "", on ? K_INK : K_CHORD);
     }
 }
 
@@ -859,15 +820,23 @@ static void draw_main(void)
              (uint32_t)proj.par[P_TRANSPOSE] << 8 | (uint32_t)(om_chord_level * 8.0f));
     for (s = 0; s < NPADS; s++)
         h = hash(h, proj.pad_root[s] | proj.pad_type[s] << 4);
+    h = hash(h, om_rec_state | (uint32_t)om_count << 4 | (uint32_t)(om_rec_state == 2 ? om_loop_pos / 4u : 0u) << 8);
     if (ui.view == V_RHYTHM)
         h = hash(hash(hash(h, om_playing ? om_step : 255u), (uint32_t)proj.par[P_RHYTHM]),
                  om_loop_pos | proj.loop_len << 8 | om_rec_state << 16 | om_drums_on << 20 | om_seq_on << 21);
-    if (ui.view == V_MARKOV)
-        h = hash(hash(h, (uint32_t)proj.par[P_CHAOS] | proj.par[P_CHANGES] << 8), (uint32_t)ui.last_pad);
     if (h == ui.sig[1])
         return;
     ui.sig[1] = h;
     cv_begin(240, MAIN_H, K_BG);
+    {   /* scanlines, and a HUD's corner ticks */
+        int32_t y;
+        for (y = 1; y < MAIN_H; y += 3)
+            cv_rect(0, y, 240, 1, K_SCAN);
+        cv_rect(2, 2, 10, 1, K_CHORD);
+        cv_rect(2, 2, 1, 10, K_CHORD);
+        cv_rect(228, 2, 10, 1, K_CHORD);
+        cv_rect(237, 2, 1, 10, K_CHORD);
+    }
     chord_name(om_root, om_type, name);
     {   /* the chord: its name, big, and its notes */
         uint8_t hp[OM_NSTR], cn[OM_NCHORD], bn;
@@ -887,15 +856,31 @@ static void draw_main(void)
                 notes[k++] = *n++;
         }
         notes[k] = 0;
-        cv_text(240 - 12 - text_w(&FONT_S, notes), 14, &FONT_S, notes, K_DIM);
+        if (om_rec_state == 2) {                  /* recording: the bar, of how many */
+            uint32_t half = om_rhythm(proj.par[P_RHYTHM])->len / 2u;
+            itoa_u(om_loop_pos / half + 1u, notes);
+            k = str_len_(notes);
+            notes[k++] = '/';
+            itoa_u(1u << (proj.par[P_BARS] & 3), notes + k);
+            k = text_w(&FONT_B, notes);
+            cv_round(240 - 12 - k - 42, 10, 36, 18, 6, K_RHY);
+            cv_text(240 - 12 - k - 37, 11, &FONT_XS, "REC", K_INK);
+            cv_text(240 - 12 - k, 9, &FONT_B, notes, K_RHY);
+        } else {
+            cv_text(240 - 12 - text_w(&FONT_S, notes), 14, &FONT_S, notes, K_DIM);
+        }
     }
-    if (ui.view == V_RHYTHM) {
+    if (ui.view == V_RHYTHM)
         draw_rhythm(44, 62);
-    } else if (ui.view == V_MARKOV) {
-        draw_strings(44, 32);
-        draw_markov(86, 22);
-    } else {
+    else
         draw_strings(44, 54);
+    if (om_rec_state == 4 && om_count >= 1 && om_count <= 4) {   /* counting in: the beat, big, over it all */
+        char t[2] = {(char)('0' + om_count), 0};
+        int32_t w = text_w(&FONT_L, t);
+        cv_round(120 - 38, 38, 76, 70, 6, K_RHY);
+        cv_round(120 - 36, 40, 72, 66, 6, K_BG);
+        text_c(120, 46, &FONT_XS, "COUNT IN", K_RHY);
+        cv_text(120 - w / 2, 62, &FONT_L, t, K_RHY);
     }
     draw_pads(112);
     cv_blit(0, MAIN_Y);
@@ -912,7 +897,8 @@ static void draw_knobs(void)
         return;
     ui.sig[2] = h;
     cv_begin(240, KNB_H, K_BG);
-    cv_round(4, 2, 232, KNB_H - 6, 6, K_PANEL);
+    cv_round(4, 2, 232, KNB_H - 6, 6, K_HARP);           /* the panel, outlined in neon */
+    cv_round(5, 3, 230, KNB_H - 8, 6, K_PANEL);
     for (i = 0; i < 4; i++) {
         int k = view_knob(ui.view, (int)i), lo, hi, v;
         int32_t x = (int32_t)i * 60, cx = x + 30, bw;
@@ -1023,7 +1009,7 @@ static struct {
     uint32_t ctx;                              /* the page, hashed: a change is said */
     int32_t chord;                             /* the chord said last: button | root | type, -1 none */
     int16_t val[SP_NV];
-    int8_t playing, armed;
+    int8_t playing, armed, rec, count;
     uint8_t started;
 } sp OM_POOL;
 static char sp_buf[ANN_MAX + 1] OM_POOL;
@@ -1147,7 +1133,20 @@ static void speak(void)
     }
     if (om_playing != sp.playing) {
         sp.playing = (int8_t)om_playing;
-        ann_say(om_playing ? "Play" : "Stop", 0, ANN_NOW);
+        if (om_rec_state != 4)
+            ann_say(om_playing ? "Play" : "Stop", 0, ANN_NOW);
+    }
+    if (om_rec_state == 4 && om_count != sp.count) {   /* the count-in: each beat */
+        char t[2] = {(char)('0' + om_count), 0};
+        sp.count = (int8_t)om_count;
+        ann_say(t, 0, ANN_NOW);
+    }
+    if (om_rec_state != sp.rec) {
+        if (om_rec_state == 2)
+            ann_say("Recording", 0, ANN_NOW);
+        sp.rec = (int8_t)om_rec_state;
+        if (om_rec_state != 4)
+            sp.count = 0;
     }
     c = sp_ctx_sig();
     if (c != sp.ctx) {                                /* a new page: said when it settles */
@@ -1191,7 +1190,7 @@ static void speak_dump(void)
 {
     static const char *const MSG[][2] = {{"UPDATE MODE IN", "3.."}, {"UPDATE MODE", "CANCELLED"}, {"DRUMS", "ON"},
                                          {"DRUMS", "OFF"}, {"SEQUENCE", "ON"}, {"SEQUENCE", "OFF"},
-                                         {"RECORD", "NOW"}, {"RECORD", "FROM THE NEXT BAR"},
+                                         {"COUNT IN", "4 BEATS"}, {"COUNT IN", "FROM THE NEXT BAR"},
                                          {"RECORDING", "STOPPED"}, {"LOOP", "CLEARED"}, {"LOOP", "2 BARS"},
                                          {"LOOP", "1 BAR"}, {"WAITING FOR", "A CHORD"}, {"SYNC START", "CANCELLED"},
                                          {"DRUMS AND SEQUENCE", "ON"}, {"DRUMS AND SEQUENCE", "OFF"}, {"FROM THE TOP", ""},
@@ -1291,9 +1290,7 @@ void ui_init(void)
     ui.touched = -1;
     ui.root = proj.pad_root[1];                  /* C, the second button */
     ui.type = proj.pad_type[1];
-    ui.last_pad = -1;
     ui.loop_done = om_loop_done;
-    om_pad(1);
     sound_chord();
     lcd_fill(0, 0, 240, 240, K_BG);
 }

@@ -1,5 +1,5 @@
 # the two tracks (PLAY: the drums, SEQ: the sequence), a loop recorded with REC, kept after a restart, cleared
-# by holding REC; the voices (the Play and Voices pages); Markov (its page, what it learns, its changes)
+# by holding REC; the count-in before it; the voices (the Play and Voices pages)
 wait 200
 turn SELECT 4 200
 expect par5 120
@@ -18,15 +18,23 @@ expect playing 1
 tap PLAY
 wait 20
 expect playing 0
-# a loop of one bar (Rhythm page, GLO: Bars 1): REC starts the sequence, C for half the bar then A minor
+# a loop of one bar (Rhythm page, GLO: Bars 1): REC starts the sequence with four beats counted in (2 s at
+# 120), then records: C for half the bar, then A minor
 tap GLO
 expect view 2
 spin K3 -1
 expect par24 0
 key b1 down
 tap REC
-expect rec 2
+expect rec 4
+expect count 1
 expect seq 1
+wait 600
+expect count 2
+shot countin.png
+wait 1400
+expect rec 2
+expect step <2
 wait 900
 key b1 up
 key b4 down
@@ -78,7 +86,7 @@ wait 50
 shot om84.png
 tap FX
 tap FX
-expect view 6
+expect view 5
 spin K1 2
 expect par20 4
 key b2 down
@@ -87,23 +95,3 @@ expect chord_level >50
 key b2 up
 wait 50
 shot voices.png
-# Markov learns the changes played: C -> G -> Am
-tapkey b1
-tapkey b2
-tapkey b4
-expect learn13 1
-expect learn26 1
-# its page (SEL twice): chord changes every bar; the sequence plays them with no button held
-tap SEL
-tap SEL
-expect view 3
-spin K1 1
-expect par25 1
-tap SEQ
-wait 6000
-expect gen 1
-expect chord_level >50
-shot markov.png
-tap SEQ
-wait 50
-expect gen 0

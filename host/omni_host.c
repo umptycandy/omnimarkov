@@ -437,8 +437,8 @@ static int expect(const char *what, const char *val)
         got = om_root;
     else if (!strcmp(what, "poly"))
         got = om_poly_n;
-    else if (!strncmp(what, "learn", 5))          /* learnN: Markov's count, proj.learn[N] (from * 11 + to) */
-        got = proj.learn[atoi(what + 5)];
+    else if (!strcmp(what, "count"))              /* counting in: the beat */
+        got = om_count;
     else if (!strncmp(what, "par", 3))            /* parN: parameter N (omni.h P_*) */
         got = proj.par[atoi(what + 3)];
     else if (!strncmp(what, "padroot", 7))

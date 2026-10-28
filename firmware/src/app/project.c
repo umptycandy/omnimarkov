@@ -101,7 +101,7 @@ int project_save(void) { return plat_store_save(OBJ_PROJ, &proj, sizeof proj); }
 void project_apply(void)
 {
     int i;
-    om_link(proj.pad_root, proj.pad_type, proj.learn, proj.loop, &proj.loop_len);
+    om_link(proj.loop, &proj.loop_len);
     for (i = 0; i < P_NPARAMS; i++)
         om_set(i, proj.par[i]);
 }
