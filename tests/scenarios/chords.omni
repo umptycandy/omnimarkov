@@ -45,11 +45,15 @@ expect chord_level 0
 expect pad -1
 tap ARP
 expect hold 0
-# SYNC START: PLAY waits for a chord
-tap REC
+# SYNC START (the Setup page, GLO twice): PLAY and SEQ wait for a chord, and start with it
+tap GLO
+tap GLO
+expect view 7
+spin K4 1
 expect sync 1
 tap PLAY
-expect armed 1
+tap SEQ
+expect armed 3
 expect playing 0
 wait 100
 key b3 down
@@ -58,7 +62,11 @@ expect playing 1
 expect armed 0
 key b3 up
 tap PLAY
+expect playing 1
+tap SEQ
+wait 20
 expect playing 0
+tap HOME
 # OCT+ moves the plate up
 tap OCT+
 expect par13 1
@@ -69,7 +77,7 @@ turn PRESET 2
 expect par12 2
 # the CHORDS page: press a button, change its chord
 tap SEL
-expect view 3
+expect view 4
 tapkey b10
 spin K1 -2
 spin K2 -2
@@ -87,3 +95,15 @@ expect sync 1
 shot after_reboot.png
 # Chord rev comes back at its default
 expect par11 25
+# a project saved by 0.2 (format 2) loads: its values kept, Auto bass gone (the SEQ track is that now),
+# the bass's level its old chord level, the new voices at their defaults
+oldproject
+reboot
+wait 100
+expect par3 40
+expect par24 40
+expect par7 0
+expect par16 1
+expect padroot0 2
+expect padtype0 1
+expect hold 1

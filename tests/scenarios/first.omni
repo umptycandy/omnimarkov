@@ -20,14 +20,17 @@ key b4 up
 wait 400
 expect chord_level <5
 tap PLAY
+tap SEQ
 expect playing 1
 key b1 down
 wait 3000
-tap SEQ
+tap GLO
 wait 100
 shot rhythm.png
 key b1 up
 tap PLAY
+tap SEQ
+wait 20
 expect playing 0
 wait 500
 wavstop
@@ -42,6 +45,7 @@ spin K2 1
 wait 50
 shot pads.png
 expect padtype6 3
+tap GLO
 tap GLO
 wait 50
 shot setup.png

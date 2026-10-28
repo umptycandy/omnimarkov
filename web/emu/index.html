@@ -139,9 +139,9 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
       <li><b>White keys</b> strum, <b>black keys</b> pick the chord.</li>
       <li><b>ENV</b> held: minor chord. <b>LFO</b> held: 7th. Both: m7.</li>
       <li><b>ARP</b> chord hold: the chord keeps playing after you let go.</li>
-      <li><b>PLAY</b> rhythm on / off. <b>REC</b> sync start: the rhythm waits for your first chord.</li>
+      <li><b>PLAY</b> the drums on / off. <b>SEQ</b> the sequence (bass and chord in time, the loop, Markov) on / off. <b>REC</b> records a loop; held a second, clears it.</li>
       <li><b>OCT−</b> / <b>OCT+</b> move the strings an octave.</li>
-      <li>Pages: <b>HOME</b> play, <b>SEQ</b> rhythm, <b>FX</b> sound, <b>SEL</b> chords (press a black key, then turn KNOB 1 and 2 to change it), <b>GLO</b> setup. <b>EDIT</b> steps through them.</li>
+      <li>Pages, two a button (press again for the second): <b>HOME</b> play / mix, <b>GLO</b> rhythm / setup, <b>FX</b> sound / voices, <b>SEL</b> chords (press a black key, then turn KNOB 1 and 2 to change it) / Markov. <b>EDIT</b> steps through them.</li>
       <li><b>SELECT</b> tempo, <b>ALGORITHM</b> rhythm, <b>PRESETS</b> transpose, <b>KNOB 1–4</b> the values on the screen. <b>SAVE</b> saves.</li>
     </ul>
   </div>
@@ -161,7 +161,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
       <li>On a button or key: <kbd>Space</kbd> or <kbd>Enter</kbd> holds it down while you hold the key. <kbd>Shift</kbd>+<kbd>Enter</kbd> keeps a button down until you press it again.</li>
       <li>Shortcuts, while the panel has focus (turn them off above): strum keys (white) 1–8: <kbd>Q</kbd>–<kbd>I</kbd>, 9–16: <kbd>A</kbd>–<kbd>K</kbd>. Chord keys (black) 1–11: <kbd>1</kbd>–<kbd>0</kbd>, <kbd>-</kbd>.</li>
       <li>Hold <kbd>Shift</kbd> (ENV) for a minor chord, <kbd>/</kbd> (LFO) for a 7th, both for an m7.</li>
-      <li><kbd>P</kbd> PLAY, <kbd>O</kbd> REC (sync start), <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+, <kbd>↑</kbd> <kbd>↓</kbd> on a button or key turn SELECT.</li>
+      <li><kbd>P</kbd> PLAY, <kbd>O</kbd> REC (record a loop), <kbd>Esc</kbd> HOME, <kbd>Z</kbd> / <kbd>X</kbd> OCT− / OCT+, <kbd>↑</kbd> <kbd>↓</kbd> on a button or key turn SELECT.</li>
     </ul>
   </div>
   <div>
@@ -280,9 +280,10 @@ function hit(c, parent, attrs, cls) {
   c.hit = d;
 }
 // what each control does (said as its description, and on hover; the Buttons list below says the same)
-const TIP = { FX: "Sound page", SEL: "Chords page: press a black key, then KNOB 1 and 2 change its chord", ENV: "Hold for a minor chord",
-  LFO: "Hold for a 7th chord (with ENV: m7)", EDIT: "Next page", GLO: "Setup page", HOME: "Play page", SAVE: "Save",
-  ARP: "Chord hold", SEQ: "Rhythm page", PLAY: "Rhythm on and off", REC: "Sync start: the rhythm waits for a chord",
+const TIP = { FX: "Sound page; again: Voices", SEL: "Chords page: press a black key, then KNOB 1 and 2 change its chord; again: Markov", ENV: "Hold for a minor chord",
+  LFO: "Hold for a 7th chord (with ENV: m7)", EDIT: "Next page", GLO: "Rhythm page; again: Setup", HOME: "Play page; again: Mix", SAVE: "Save",
+  ARP: "Chord hold", SEQ: "The sequence on and off: bass and chord in time, the loop, Markov", PLAY: "The drums on and off",
+  REC: "Record a loop; hold to clear it",
   "OCT-": "Strings an octave down", "OCT+": "Strings an octave up", SELECT: "Tempo", ALGORITHM: "Rhythm", PRESETS: "Transpose",
   KNOB1: "The first value on the screen", KNOB2: "The second value on the screen", KNOB3: "The third value on the screen",
   KNOB4: "The fourth value on the screen" };

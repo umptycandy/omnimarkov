@@ -20,6 +20,8 @@
  *   leds                         print the lit buttons and keys
  *   expect WHAT VALUE            check state: exit 1 on mismatch; VALUE "<N" / ">N" is a bound
  *   reboot                       re-run boot from the simulated flash (persistence test)
+ *   oldproject                   put a format 2 project (0.2) in the simulated flash: Chord 40, Auto bass on,
+ *                                button 0 a D minor, HOLD on (then reboot: the upgrade test)
  *   listen                       a screen reader starts listening (HELLO, again every 2 s): each SAY is printed
  *                                ("said: ..."; "said!:" cuts off what was being said)
  *   where                        the reader asks for everything on the screen
@@ -28,6 +30,7 @@
  * OMNI_SAID_LOG=FILE: a reader listens from boot, quietly, and every SAY is appended to FILE (the audit).
  */
 #define OM_HOST 1
+#define _POSIX_C_SOURCE 200809L               /* clock_gettime under -std=c99 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -422,6 +425,22 @@ static int expect(const char *what, const char *val)
         got = (int)(om_chord_level * 100.0f);
     else if (!strcmp(what, "bass_level"))
         got = (int)(om_bass_level * 100.0f);
+    else if (!strcmp(what, "drums"))
+        got = om_drums_on;
+    else if (!strcmp(what, "seq"))
+        got = om_seq_on;
+    else if (!strcmp(what, "rec"))
+        got = om_rec_state;
+    else if (!strcmp(what, "looplen"))
+        got = proj.loop_len;
+    else if (!strcmp(what, "gen"))
+        got = om_gen;
+    else if (!strcmp(what, "chordroot"))          /* the chord sounding (a button's, the loop's, Markov's) */
+        got = om_root;
+    else if (!strcmp(what, "poly"))
+        got = om_poly_n;
+    else if (!strncmp(what, "learn", 5))          /* learnN: Markov's count, proj.learn[N] (from * 11 + to) */
+        got = proj.learn[atoi(what + 5)];
     else if (!strncmp(what, "par", 3))            /* parN: parameter N (omni.h P_*) */
         got = proj.par[atoi(what + 3)];
     else if (!strncmp(what, "padroot", 7))
@@ -582,7 +601,26 @@ int main(int argc, char **argv)
             printf("\n");
         } else if (!strcmp(cmd, "expect"))
             fails += expect(a, b);
-        else if (!strcmp(cmd, "reboot")) {
+        else if (!strcmp(cmd, "oldproject")) {
+            project_v2_t o;
+            int i;
+            memset(&o, 0, sizeof o);
+            o.magic = PROJ_MAGIC;
+            o.format = 2u;
+            for (i = 0; i < P_NPARAMS_V2; i++)
+                o.par[i] = om_param_info(i)->def;
+            o.par[P_CHORD] = 40;
+            o.par[P_BSRC] = 1;                             /* Auto bass on */
+            for (i = 0; i < NPADS; i++) {
+                o.pad_root[i] = PAD_ROOT[i];
+                o.pad_type[i] = PAD_TYPE[i];
+            }
+            o.pad_root[0] = 2;
+            o.pad_type[0] = CH_MIN;
+            o.hold = 1;
+            o.leds = 1;
+            plat_store_save(OBJ_PROJ, &o, sizeof o);
+        } else if (!strcmp(cmd, "reboot")) {
             memset(&proj, 0, sizeof proj);
             boot();
         } else if (!strcmp(cmd, "listen")) {

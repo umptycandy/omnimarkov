@@ -10,17 +10,20 @@
 #define OM_VERSION "DEV"
 #endif
 #define PROJ_MAGIC 0x494E4D4Fu           /* "OMNI" */
-#define PROJ_FORMAT 2u                   /* 2: Lo-fi's slot became Chord rev (0.2); a format 1 loads */
-#define NPADS 11                         /* the black keys: chord buttons */
+#define PROJ_FORMAT 3u                   /* 3: the voices, the tracks, the loop and Markov (0.3); 1 and 2 load */
+#define NPADS OM_NPADS                   /* the black keys: chord buttons */
 
 typedef struct {
     uint32_t magic, format;
     int16_t par[P_NPARAMS];              /* omni.h P_* */
     uint8_t pad_root[NPADS], pad_type[NPADS];
     uint8_t hold;                        /* CHORD HOLD: the chord keeps playing after its button is let go */
-    uint8_t sync;                        /* SYNC START: the rhythm starts with the first chord */
+    uint8_t sync;                        /* SYNC START: the tracks start with the first chord */
     uint8_t leds;                        /* lights: 0 off, 1 keys and the buttons' glow, 2 keys only */
-    uint8_t rsv[13];                     /* room to grow: an older, shorter project loads (zeros here) */
+    uint8_t loop_len;                    /* the recorded loop's steps, 0: none */
+    uint8_t learn[NPADS * NPADS];        /* Markov: the chord changes played, [from][to], counted */
+    uint8_t loop[OM_LOOP_MAX * 3];       /* the loop, 3 bytes a step (dsp/omni.c) */
+    uint8_t rsv[16];                     /* room to grow: an older, shorter project loads (zeros here) */
 } project_t;
 
 extern project_t proj;

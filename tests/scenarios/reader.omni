@@ -3,12 +3,13 @@
 wait 200
 listen
 wait 100
-said Play page: Voice 1 80, Voice 2 45, Sustain 50, Chord 60. Chord C major. Rhythm Rock 1, tempo 116, stopped
+said Play page: Model String, Bright 50, Structure 40, Sustain 50. Chord C major. Rhythm Rock 1, tempo 116, stopped
 # a page settles before it is said
-tap SEQ
+tap GLO
 wait 300
-said Rhythm page: Rhythm Rock 1, Tempo 116, Drums 70, Auto bass On
+said Rhythm page: Rhythm Rock 1, Tempo 116, Bass Rhythm, Bars 2 bars
 tap FX
+tap GLO
 tap GLO
 wait 300
 said Setup page: Tune 0
@@ -41,26 +42,34 @@ said G minor
 key b2 up
 release ENV
 wait 100
-# the transport
+# the tracks
 tap PLAY
 wait 50
-said Play
+said DRUMS ON
+tap SEQ
+wait 50
+said SEQUENCE ON
 tap PLAY
 wait 50
-said Stop
+said DRUMS OFF
+tap SEQ
+wait 50
+said SEQUENCE OFF
 # the buttons' messages, said once (OCT+ says its own: not again as a readout)
 tap ARP
 said CHORD HOLD ON
 tap ARP
 said CHORD HOLD OFF
-tap REC
-said SYNC START ON
+spin K4 1
+wait 300
+said Sync start On
 tap PLAY
 said WAITING FOR A CHORD
 tap PLAY
 said SYNC START CANCELLED
-tap REC
-said SYNC START OFF
+spin K4 -1
+wait 300
+said Sync start Off
 tap OCT+
 wait 300
 said OCTAVE +1

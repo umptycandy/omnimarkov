@@ -13,6 +13,7 @@ your recipients its complete corresponding source under the same licence.
 | `firmware/src/app/{panel,plat_fm1,main_fm1}.c`, `host/omni_host.c`, `web/emu/` | adapted from X0X (itself from Felucca's `panel.c`, `main.c`, `audio.c`) | GPL-3.0-only |
 | Rhythm patterns, single-cycle waves, drum sounds, envelope shapes and the strum plate's voicing (`firmware/src/dsp/om_data.h`, `om_drums.h`, made by `tools/import_chordian.py`) | [Chordian](https://github.com/Jan125/pb.chordian) by Jan125, an OM-84 emulator | CC0 1.0 (public domain) |
 | The idea of a browser emulator for FM-1 firmware (`web/emu/`) | [Groove OS](https://www.groove-os.com/) by Peter Gombos, whose site runs its firmware in the browser; no code from it | credit only |
+| The String, Modal, Analog, FM and Fold voices (`firmware/src/dsp/models.h`): rewritten in C from Plaits' and Rings' DSP (string, modal resonator, virtual analog, FM, waveshaper, low-pass gate, their tables) | [Mutable Instruments eurorack](https://github.com/pichenettes/eurorack), Copyright 2015-2021 Emilie Gillet | MIT (its notice is in the file); FoMni's C under GPL-3.0-only |
 | Everything else in `firmware/src/{app,dsp}`, `tests/` | FoMni | GPL-3.0-only |
 
 ## Third-party material

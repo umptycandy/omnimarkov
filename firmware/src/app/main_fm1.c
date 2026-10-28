@@ -82,6 +82,22 @@ static void audio_silence(void)                     /* IRQs off (flash erase): t
         abuf[i] = 0;
 }
 
+/* the harp's polyphony against the render's budget: a voice fewer when it nears it (or a half was late),
+ * one more only when all of them sound and there is room to spare. Every 250 ms */
+static void cpu_governor(void)
+{
+    static uint32_t t, late;
+    uint32_t pct = audio_cpu_pct;
+    if (fm1_ms - t < 250u)
+        return;
+    t = fm1_ms;
+    if ((pct > 80u || om_dbg.late != late) && om_poly_n > 2u)
+        om_poly(om_poly_n - 1);
+    else if (pct < 55u && om_hv_active >= om_poly_n && om_poly_n < OM_HV_MAX)
+        om_poly(om_poly_n + 1);
+    late = om_dbg.late;
+}
+
 /* ------------------------------------------------------------ timer --- */
 static uint8_t usb_due;
 void fm1_timer5_irq(void)
@@ -359,6 +375,7 @@ static void fm1_main(void)
             last_frame = fm1_ms;
             om_dbg.ui_frames++;
             ui_frame();
+            cpu_governor();
         } else {
             ui_input_only();
         }
