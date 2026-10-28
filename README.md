@@ -2,18 +2,18 @@
 
 FoMni turns the M-VAVE FM-1 into a chord harp inspired by the Suzuki Omnichord. The 16 white
 keys are the strum plate: run a finger across them and they ring out the chord. The 11 black keys
-are the chord buttons. Behind them sit an organ-like chord with its bass, and the OM-84's ten
-rhythms, which can play the bass and chord in time (auto bass sync).
+are the chord buttons. Behind them sit an organ-like chord, held while you hold a button, and the
+OM-84's ten rhythms' drums. There is no bass line and no melody: the chords, the strings you strum, the drums.
 
 It is meant to be simple: one screen, four knobs a page, no patterns to program.
 
 This version adds:
 
 - **New voices.** Five voices ported from Mutable Instruments' Rings and Plaits (MIT-licensed): String, Modal, Analog, FM and Fold.
-- **A voice per section.** The harp, the chord and the bass each choose their own voice; the original OM-84 voice is still one of the choices.
-- **Two tracks.** The drums and the sequence (bass and chord in time) start and stop separately.
-- **Loops.** A bass and chord-progression loop recorder.
-- **Markov generators.** Chord changes (learned from what you play), a bass line and an arp.
+- **A voice per section.** The harp and the chord each choose their own voice; the original OM-84 voice is still one of the choices.
+- **Two tracks.** The drums and the sequence (the chords held in time) start and stop separately.
+- **Loops.** A chord-progression loop recorder.
+- **Markov chord changes,** learned from what you play.
 
 [![FoMni running on the FM-1 (watch on YouTube)](https://img.youtube.com/vi/pahaM6nzucE/maxresdefault.jpg)](https://www.youtube.com/watch?v=pahaM6nzucE)
 
@@ -34,7 +34,7 @@ firmware back, and an FM-1 that keeps crashing starts in a safe mode.
 | Black keys | Chord buttons (F C G, Dm Am, Em G7 E7, D7 Bb, A7 by default). Hold **LFO** for the 7th. |
 | ENV | **Shift.** Hold it and turn KNOB 1–4 for the page's second layer (see below). ENV + PLAY: both tracks at once. ENV + SEQ: back to the top of the bar. ENV + REC: overdub the loop. ENV + a black key: pick that button on the Chords page without playing it. |
 | PLAY | The **drums** track, on and off. |
-| SEQ | The **sequence** track, on and off: the bass and chord in time (the rhythm's patterns, your loop, or Markov), the Markov chord changes and the arp. The clock runs while either track does; a track started while the other plays joins in time. |
+| SEQ | The **sequence** track, on and off: the chords held in time, from your loop or Markov's chord changes. The clock runs while either track does; a track started while the other plays joins in time. |
 | REC | Record a loop (see Loops below). Press again to stop early. Hold for a second to clear the loop. |
 | ARP | CHORD HOLD: the chord keeps playing after you let go (press the same button again to stop it). |
 | OCT− / OCT+ | Move the strum plate an octave. |
@@ -50,52 +50,47 @@ Each page puts four values on KNOB 1–4. Each page button has two pages: press 
 EDIT steps through all eight.
 
 - **HOME: Play.** The harp's voice (Model), its two knobs (named for the voice), Sustain.
-  **HOME again: Mix.** Harp, Chord, Bass and Drums levels.
-- **GLO: Rhythm.** Rhythm, Tempo, Bass (where the sequence gets its bass and chord: Rhythm, Loop or Markov), Bars (a loop's length: 1, 2, 4 or 8).
+  **HOME again: Mix.** Harp, Chord and Drums levels.
+- **GLO: Rhythm.** Rhythm (the drums), Tempo, Bars (a loop's length: 1, 2, 4 or 8), Swing.
   **GLO again: Setup.** Tune, MIDI out, Lights (On: the key lights, and the unlit buttons glow dimly so they can be read; Keys: the key lights only; Off), Sync start (PLAY and SEQ wait for your first chord).
-- **FX: Sound.** Reverb (the strings' send), Space (the plate's size), Width, Chord rev (the chord and bass's send). The drums stay dry.
-  **FX again: Voices.** The chord's voice and its tone, the bass's voice and its tone.
+- **FX: Sound.** Reverb (the strings' send), Space (the plate's size), Width, Chord rev (the chord's send). The drums stay dry.
+  **FX again: Voices.** The chord's voice, Tone, Color and Release.
 - **SEL: Chords.** Change the chord on any black key: press the key, then turn Root (KNOB 1) and Type (KNOB 2). KNOB 3 and 4 are Transpose and Octave.
-  **SEL again: Markov.** Arp, Changes, Bass var, Chaos (see below). Bars over the chord buttons show how likely each is to come next.
+  **SEL again: Markov.** Changes, Chaos, Learn (see below). Bars over the chord buttons show how likely each is to come next.
 
 ### Shift (ENV held)
 
-| Page | KNOB 1–4 while ENV is held |
-|---|---|
-| Play | Velocity (the strum's strength), Position (where a Modal string is struck), LPG color (Analog, FM, Fold) |
-| Rhythm | Swing |
-| Markov | Arp range (how many strings the arp walks over), Arp rate (1/16, 1/8, 1/4), Learn (how much the changes you play count) |
-| Voices | Chord color, Chord rel(ease), Bass color, Bass rel(ease) |
+On the Play page, KNOB 1–3 while ENV is held: Velocity (the strum's strength), Position (where a Modal
+string is struck), LPG color (Analog, FM, Fold).
 
 ### The voices
 
 | Voice | From | KNOB 2 / KNOB 3 on the Play page |
 |---|---|---|
-| OM-84 | the original: the Omnichord's harp, chord organ and bass | Voice 1 (shimmering) / Voice 2 (plain) |
+| OM-84 | the original: the Omnichord's harp and chord organ | Voice 1 (shimmering) / Voice 2 (plain) |
 | String | Plaits' and Rings' string: a plucked, Karplus-Strong-style string | Bright / Structure (below the middle: a sitar's buzzing bridge; above: a piano's stiffness) |
 | Modal | Plaits' and Rings' modal resonator, struck | Bright / Structure (a string's harmonics to a bell's and a plate's partials) |
 | Analog | Plaits' virtual analog, through its low-pass gate | Shape (saw, square, thin pulse) / Detune (a second saw) |
 | FM | Plaits' two-operator FM | Index / Ratio (Plaits' ratios) |
 | Fold | Plaits' wavefolder | Fold / Slope |
 
-Sustain sets how long the strings ring, whatever the voice. Held chords and bass notes on String and
-Modal are bowed (Plaits' continuous excitation) while held, and damped when let go.
+Sustain sets how long the strings ring, whatever the voice. Held chords on String and Modal are bowed
+(Plaits' continuous excitation) while held, and damped when let go.
 
 The harp shares a pool of 8 to 12 voices (a strum keeps the newest strings ringing). On the FM-1, FoMni
 watches how hard the audio is working and plays fewer harp voices when it nears its limit.
 
 ### Loops
 
-REC records what the sequence plays: the chord changes (from the buttons, MIDI or Markov), the chord's
-pattern and the bass. If nothing is playing, recording starts at once, with the sequence; otherwise it
-starts on the next bar. After Bars bars (Rhythm page) it stops by itself, sets Bass to Loop, and the
-sequence plays it back. While it plays, your hands are free for the strum plate: the harp follows the
-loop's chords. Hold a chord button over a playing loop and the loop's bass moves to that chord.
-The loop is saved with the rest. Hold REC for a second to clear it.
+REC records the chord changes (from the buttons, MIDI or Markov), step by step. If nothing is playing,
+recording starts at once, with the sequence; otherwise it starts on the next bar. After Bars bars
+(Rhythm page) it stops by itself and the sequence plays it back, holding each chord in turn. While it
+plays, your hands are free for the strum plate: the harp follows the loop's chords. Hold a chord button
+over a playing loop and that chord sounds instead while you hold it. The loop is saved with the rest.
+Hold REC for a second to clear it.
 
 **Overdub** (ENV + REC, while a loop plays): one pass round the loop, recording over it. Hold a chord
-button while it runs and that part of the loop takes the new chord, its bass moved with it. MIDI channel 3
-notes are recorded too.
+button while it runs and that part of the loop takes the new chord.
 
 ### Markov
 
@@ -103,11 +98,10 @@ notes are recorded too.
   is chosen from a Markov chain over the chord buttons. It starts from the usual root moves (down a fifth,
   up a fifth, to the relative minor, a 7th resolving) and learns from you: every change you play by
   hand counts, and is saved. Press a button to take over; let go and Markov goes on from there.
-- **Bass var:** with Bass set to Markov, the bass walks a chain of root, fifth, third, octave, leading
-  tone and sixth (seventh) over the rhythm's bass, adding notes between them as you turn it up.
-- **Arp:** with the sequence on, the harp plays itself: a walk over the strings, mostly a string or two at
-  a time and mostly on in the direction it was going, on the beat more than off it.
-- **Chaos:** flattens every chain, from the likeliest moves to anything goes.
+- **Chaos:** flattens the chain, from the likeliest moves to anything goes.
+- **Learn:** how much the changes you play count against the usual root moves.
+
+Markov holds each chord it chooses; the loop takes precedence when there is one.
 
 ### MIDI
 
@@ -115,9 +109,8 @@ MIDI comes in over USB and the TRS jack (the FM-1's jack is an input), and goes 
 
 - **In, channel 1:** notes pluck the nearest string, at their velocity.
 - **In, channel 2:** play a chord on a keyboard and it becomes the chord, as if you'd pressed a black key.
-- **In, channel 3:** notes play the bass (and a loop being recorded records them).
 - **In, clock:** the tracks follow MIDI clock; start starts both, stop stops both. The screen shows EXT for the tempo.
-- **Out** (on by default, Setup page): the strings on channel 1, the chord on 2, the bass on 3, the drums
+- **Out** (on by default, Setup page): the strings on channel 1, the chord on 2, the drums
   on 10, and clock with start / stop when the rhythm runs on its own tempo.
 
 The drums on channel 10:

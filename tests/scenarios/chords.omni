@@ -92,13 +92,12 @@ expect sync 1
 shot after_reboot.png
 # Chord rev comes back at its default
 expect par11 25
-# a project saved by 0.2 (format 2) loads: its values kept, Auto bass gone (the SEQ track is that now),
-# the bass's level its old chord level, the new voices at their defaults
+# a project saved by 0.2 (format 2) loads: its values kept, Auto bass gone (that slot is Swing now), the
+# new voices at their defaults
 oldproject
 reboot
 wait 100
 expect par3 40
-expect par24 40
 expect par7 0
 expect par16 1
 expect padroot0 2
@@ -108,7 +107,7 @@ expect hold 1
 press ENV
 spin K1 -30
 release ENV
-expect par30 50
+expect par28 50
 spin K1 1
 expect par16 2
 # SHIFT + PLAY: both tracks at once; SHIFT + SEQ: from the top

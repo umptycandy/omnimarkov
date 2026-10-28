@@ -1,4 +1,4 @@
-# a first look and listen: a C chord strummed, Am with the pad held, the rhythm with auto bass
+# a first look and listen: a C chord strummed, Am with the pad held, the drums and the sequence
 wav first.wav
 wait 300
 shot home.png

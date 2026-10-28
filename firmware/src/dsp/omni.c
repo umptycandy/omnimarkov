@@ -25,16 +25,13 @@ const char *const OM_MODEL_NAME[OM_NMODELS] = {"OM-84", "String", "Modal", "Anal
 
 static const om_param_t PARAMS[P_NPARAMS] = {
     {"Voice 1", 0, 100, 80}, {"Voice 2", 0, 100, 45}, {"Sustain", 0, 100, 50}, {"Chord", 0, 100, 60},
-    {"Rhythm", 0, OM_NRHYTHM - 1, 0}, {"Tempo", 60, 240, 116}, {"Drums", 0, 100, 70}, {"Bass", 0, SRC_N - 1, SRC_RHYTHM},
+    {"Rhythm", 0, OM_NRHYTHM - 1, 0}, {"Tempo", 60, 240, 116}, {"Drums", 0, 100, 70}, {"Swing", 0, 50, 0},
     {"Reverb", 0, 100, 30}, {"Space", 0, 100, 55}, {"Tune", -50, 50, 0}, {"Chord rev", 0, 100, 25},
     {"Transpose", -6, 6, 0}, {"Octave", -1, 1, 0}, {"Width", 0, 100, 60}, {"MIDI out", 0, 1, 1},
     {"Model", 0, OM_NMODELS - 1, M_STRING}, {"Timbre", 0, 100, 50}, {"Color", 0, 100, 40}, {"Harp", 0, 100, 80},
-    {"Chord", 0, OM_NMODELS - 1, M_MODAL}, {"Tone", 0, 100, 50}, {"Bass", 0, OM_NMODELS - 1, M_ANALOG},
-    {"Tone", 0, 100, 35}, {"Bass", 0, 100, 60}, {"Bars", 0, 3, 1},
-    {"Arp", 0, 100, 0}, {"Changes", 0, 3, 0}, {"Bass var", 0, 100, 40}, {"Chaos", 0, 100, 30},
+    {"Chord", 0, OM_NMODELS - 1, M_MODAL}, {"Tone", 0, 100, 50}, {"Color", 0, 100, 25}, {"Release", 0, 100, 40},
+    {"Bars", 0, 3, 1}, {"Changes", 0, 3, 0}, {"Chaos", 0, 100, 30}, {"Learn", 0, 100, 50},
     {"Velocity", 1, 100, 80}, {"Position", 0, 100, 10}, {"LPG color", 0, 100, 50},
-    {"Chord color", 0, 100, 25}, {"Chord rel", 0, 100, 40}, {"Bass color", 0, 100, 25}, {"Bass rel", 0, 100, 40},
-    {"Swing", 0, 50, 0}, {"Arp range", 3, 16, 16}, {"Arp rate", 0, 2, 0}, {"Learn", 0, 100, 50},
 };
 
 const om_rhythm_t *om_rhythm(int i) { return &OM_RHYTHM[(unsigned)i < OM_NRHYTHM ? i : 0]; }
@@ -68,7 +65,6 @@ static void itoa_s(int v, char *b)
 void om_param_text(int i, int v, char *b)
 {
     static const char *const ONOFF[2] = {"Off", "On"};
-    static const char *const SRC[SRC_N] = {"Rhythm", "Loop", "Markov"};
     static const char *const CHG[4] = {"Off", "1 bar", "2 bars", "4 bars"};
     static const char *const BARS[4] = {"1 bar", "2 bars", "4 bars", "8 bars"};
     const char *s = 0;
@@ -76,18 +72,12 @@ void om_param_text(int i, int v, char *b)
         s = OM_RHYTHM[v < 0 ? 0 : v % OM_NRHYTHM].name;
     else if (i == P_MIDI)
         s = ONOFF[v ? 1 : 0];
-    else if (i == P_BSRC)
-        s = SRC[(unsigned)v < SRC_N ? v : 0];
-    else if (i == P_HMODEL || i == P_CMODEL || i == P_BMODEL)
+    else if (i == P_HMODEL || i == P_CMODEL)
         s = OM_MODEL_NAME[(unsigned)v < OM_NMODELS ? v : 0];
     else if (i == P_CHANGES)
         s = CHG[v & 3];
     else if (i == P_BARS)
         s = BARS[v & 3];
-    else if (i == P_ARP && v == 0)
-        s = "Off";
-    else if (i == P_ARPRATE)
-        s = v == 2 ? "1/4" : v ? "1/8" : "1/16";
     if (s) {
         int k = 0;
         while (s[k] && k < 9) {
@@ -127,7 +117,7 @@ void om_voicing(int root, int type, int transpose, int octave, uint8_t harp[OM_N
 }
 
 /* ------------------------------------------------------------ commands --- */
-enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_PAD, C_BNOTE, C_POLY, C_RESTART };
+enum { C_SET, C_CHORD, C_GATE, C_STRUM, C_PLAY, C_PANIC, C_CLOCK, C_SEQ, C_REC, C_PAD, C_POLY, C_RESTART };
 #define QN 64u
 static uint32_t q[QN];
 static volatile uint32_t q_w, q_r;
@@ -150,7 +140,6 @@ void om_play(int on) { post(C_PLAY, on, 0); }
 void om_seq(int on) { post(C_SEQ, on, 0); }
 void om_rec(int cmd) { post(C_REC, cmd, 0); }
 void om_restart(void) { post(C_RESTART, 0, 0); }
-void om_bass_note(int note, int on) { post(C_BNOTE, note, on); }
 void om_poly(int n) { post(C_POLY, n, 0); }
 void om_panic(void) { post(C_PANIC, 0, 0); }
 void om_clock(int msg) { post(C_CLOCK, msg, 0); }
@@ -158,19 +147,19 @@ void om_clock(int msg) { post(C_CLOCK, msg, 0); }
 /* -------------------------------------------------------------- state --- */
 volatile float om_str_level[OM_NSTR];
 volatile uint8_t om_str_note[OM_NSTR];        /* the note a pluck plays now */
-volatile float om_chord_level, om_bass_level;
+volatile float om_chord_level;
 volatile uint8_t om_playing, om_step, om_steps = 32;
 volatile uint8_t om_drum_hit;
 volatile uint8_t om_ext;
-volatile uint8_t om_drums_on, om_seq_on, om_rec_state, om_loop_pos, om_loop_done, om_bsrc;
+volatile uint8_t om_drums_on, om_seq_on, om_rec_state, om_loop_pos, om_loop_done;
 volatile uint8_t om_root, om_type, om_gen, om_poly_n, om_hv_active;
 volatile int8_t om_gen_pad = -1;
 
 static int16_t par[P_NPARAMS];
-static float tunefac = 1.0f, v1, v2, cvol, bvol, hvol, rvol, rsend, csend, sus_rate;
+static float tunefac = 1.0f, v1, v2, cvol, hvol, rvol, rsend, csend, sus_rate;
 static float pan_l[OM_NSTR], pan_r[OM_NSTR];
 static int root, type;                         /* the chord sounding */
-static uint8_t harp_n[OM_NSTR], chord_n[OM_NCHORD], bass_n;
+static uint8_t harp_n[OM_NSTR], chord_n[OM_NCHORD];
 static int gate;                               /* a chord is held: by a button, by the loop or by Markov */
 
 /* the chord by hand (a button, MIDI), the loop's, Markov's: chord_eval() picks the one that sounds */
@@ -180,7 +169,7 @@ static int gen_pad = -1;
 
 /* the project's, linked (om_link); the engine's own until then */
 static uint8_t own_root[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9}, own_type[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2};
-static uint8_t own_learn[OM_NPADS * OM_NPADS], own_loop[OM_LOOP_MAX * 3], own_len;
+static uint8_t own_learn[OM_NPADS * OM_NPADS], own_loop[OM_LOOP_MAX], own_len;
 static const uint8_t *pad_root = own_root, *pad_type = own_type, *learn = own_learn;
 static uint8_t *loop = own_loop, *loop_len = &own_len;
 
@@ -223,17 +212,16 @@ static void midi(uint32_t st, uint32_t d1, uint32_t d2)
         om_midi_out(st, d1, d2);
 }
 
-/* ---- the Rings / Plaits voices: the harp's pool, then the three chord voices and the bass */
-#define NV (OM_HV_MAX + OM_NCHORD + 1)
+/* ---- the Rings / Plaits voices: the harp's pool, then the three chord voices */
+#define NV (OM_HV_MAX + OM_NCHORD)
 #define V_CHORD OM_HV_MAX
-#define V_BASS (OM_HV_MAX + OM_NCHORD)
 static mv_t mv[NV] OM_POOL;
 static float mv_dl[NV][MV_DL] OM_POOL, mv_st[NV][MV_ST] OM_POOL;
 static int8_t hv_str[OM_HV_MAX];               /* the string a harp voice plays (-1: let go, ringing out) */
 static uint8_t hv_note[OM_HV_MAX], hv_pan[OM_HV_MAX];
 static uint32_t hv_age[OM_HV_MAX], hv_clock;
 static int hv_n = 8;                            /* the harp's polyphony (om_poly) */
-static uint8_t ver_h, ver_c, ver_b;             /* the knobs' versions: voices update when they differ */
+static uint8_t ver_h, ver_c;                    /* the knobs' versions: voices update when they differ */
 /* each model's level against the OM-84's (measured: a strum, a held chord) */
 static const float G_HARP[OM_NMODELS] = {1.0f, 1.25f, 0.75f, 0.95f, 0.85f, 1.15f};
 static const float G_HELD[OM_NMODELS] = {1.0f, 0.55f, 0.45f, 0.75f, 0.75f, 0.9f};
@@ -248,17 +236,16 @@ static void harp_par(mv_par_t *p)
     p->pos = 0.01f + 0.49f * x * x;
     p->lpgc = (float)par[P_LPGC] * 0.01f;
 }
-static void held_par(mv_t *v, int bass, int released)
+static void held_par(mv_t *v, int released)
 {
     const int m = v->model;
-    float rel = (float)par[bass ? P_BREL : P_CREL] * 0.01f;
-    v->p.timbre = (float)par[bass ? P_BTIMBRE : P_CTIMBRE] * 0.01f;
-    v->p.color = (float)par[bass ? P_BCOLOR : P_CCOLOR] * 0.01f;
+    float rel = (float)par[P_CREL] * 0.01f;
+    v->p.timbre = (float)par[P_CTIMBRE] * 0.01f;
+    v->p.color = (float)par[P_CCOLOR] * 0.01f;
     v->p.pos = 0.015f;
     v->p.lpgc = 0.5f;
     /* the physical models ring while held and are damped when let go; the LPG's decay is its release */
-    v->p.decay = (m == M_STRING || m == M_MODAL) ? (released ? 0.05f + 0.5f * rel : (bass ? 0.5f : 0.62f))
-                                                  : 0.15f + 0.45f * rel;
+    v->p.decay = (m == M_STRING || m == M_MODAL) ? (released ? 0.05f + 0.5f * rel : 0.62f) : 0.15f + 0.45f * rel;
 }
 
 /* ---- harp strings: the OM-84's (one per white key), or a voice from the pool */
@@ -363,19 +350,18 @@ static void strum(int s, int vel)
         strum_mv(s, acc);
 }
 
-/* ---- chord and bass */
-enum { E_OFF, E_DEC, E_SUS, E_REL, E_BDEC, E_CUT };
+/* ---- the chord: three voices, sounding while a chord is held (a button, the loop or Markov) */
+enum { E_OFF, E_DEC, E_SUS, E_REL, E_CUT };
 typedef struct {
     float pos, inc, v, g, cut;
     uint8_t st, note, model;
 } cv_t;
-static cv_t chv[OM_NCHORD], bsv;
-static uint8_t bass_kind;                      /* 0 root, 1 fifth, 2 third */
+static cv_t chv[OM_NCHORD];
 
-/* a held voice on its note: the OM-84's wave, or a model's voice struck */
-static void held_on(cv_t *v, mv_t *m, int bass, int note, float acc)
+/* a chord voice on its note: the OM-84's wave, or a model's voice struck */
+static void held_on(cv_t *v, mv_t *m, int note, float acc)
 {
-    int model = par[bass ? P_BMODEL : P_CMODEL];
+    int model = par[P_CMODEL];
     v->note = (uint8_t)note;
     v->inc = note_inc(note);
     v->v = 1.0f;
@@ -387,113 +373,78 @@ static void held_on(cv_t *v, mv_t *m, int bass, int note, float acc)
         mv_reset(m, model);
     m->p.f0 = note_f0(note);
     m->p.accent = acc;
-    held_par(m, bass, 0);
-    mv_coef(m, !bass, bass ? 12 : 8);
-    m->ver = bass ? ver_b : ver_c;
+    held_par(m, 0);
+    mv_coef(m, 1, 8);
+    m->ver = ver_c;
     mv_strike(m);
 }
-static void held_retune(cv_t *v, mv_t *m, int note)
-{
-    v->note = (uint8_t)note;
-    v->inc = note_inc(note);
-    if (v->model != M_OM84 && m->on) {
-        m->p.f0 = note_f0(note);
-        mv_coef(m, m != &mv[V_BASS], m != &mv[V_BASS] ? 8 : 12);
-    }
-}
 
+/* T: the chord struck (and held); R: let go */
 static void chord_cmd(char c)
 {
     int i;
-    if (c == 'T' || c == 'O') {
+    if (c == 'T') {
         for (i = 0; i < OM_NCHORD; i++) {
             if (chv[i].st != E_OFF)
                 midi(0x81, chv[i].note, 0);
-            held_on(&chv[i], &mv[V_CHORD + i], 0, chord_n[i], 0.6f);
-            chv[i].st = c == 'T' ? E_DEC : E_REL;
+            held_on(&chv[i], &mv[V_CHORD + i], chord_n[i], 0.6f);
+            chv[i].st = E_DEC;
             midi(0x91, chord_n[i], 90);
         }
-    } else if (c == 'R' || c == 'N') {
+    } else {
         for (i = 0; i < OM_NCHORD; i++)
-            if (chv[i].st != E_OFF)
-                chv[i].st = c == 'R' ? E_REL : E_CUT;
+            if (chv[i].st != E_OFF && chv[i].st != E_REL)
+                chv[i].st = E_REL;
     }
 }
 
-/* the bass on a note: T held, O a one-shot, R released, N cut */
-static void bass_play(char c, int note)
-{
-    if (c == 'T' || c == 'O') {
-        if (bsv.st != E_OFF)
-            midi(0x82, bsv.note, 0);
-        held_on(&bsv, &mv[V_BASS], 1, note, 0.8f);
-        bsv.st = c == 'T' ? E_SUS : E_BDEC;
-        midi(0x92, bsv.note, 100);
-    } else if ((c == 'R' || c == 'N') && bsv.st != E_OFF) {
-        bsv.st = c == 'R' ? E_REL : E_CUT;
-    }
-}
-
-static int bass_note(void)
-{
-    const int8_t *t = OM_TYPE_TONES[type];
-    return bass_n + (bass_kind == 1 ? 7 : bass_kind == 2 ? t[1] : 0);
-}
-
-static void rec_put(int what, int code);
-static void bass_cmd(char c, char which)
-{
-    if (c == 'T' || c == 'O')
-        bass_kind = which == '5' ? 1 : which == '3' ? 2 : 0;
-    bass_play(c, bass_note());
-    rec_put(2, c == 'T' || c == 'O' ? bass_note() | (c == 'O' ? 0x80 : 0) : c == 'R' ? 1 : 2);
-}
-static void chord_rec(char c)
-{
-    chord_cmd(c);
-    rec_put(1, c);
-}
-
-/* the chord changed: what sounds moves to it (the OM's chord and bass follow the buttons) */
+/* the chord changed: the strings play it from the next pluck */
 static void retune(void)
 {
     int i;
-    om_voicing(root, type, par[P_TRANSPOSE], par[P_OCTAVE], harp_n, chord_n, &bass_n);
+    uint8_t bass;
+    om_voicing(root, type, par[P_TRANSPOSE], par[P_OCTAVE], harp_n, chord_n, &bass);
     for (i = 0; i < OM_NSTR; i++)                 /* what each string plays when plucked next */
         om_str_note[i] = harp_n[i];
-    for (i = 0; i < OM_NCHORD; i++)
-        if (chv[i].st != E_OFF && chv[i].note != chord_n[i]) {
-            midi(0x81, chv[i].note, 0);
-            held_retune(&chv[i], &mv[V_CHORD + i], chord_n[i]);
-            midi(0x91, chord_n[i], 90);
-        }
-    if (bsv.st != E_OFF && bsv.note != bass_note() && bass_kind < 3) {
-        midi(0x82, bsv.note, 0);
-        held_retune(&bsv, &mv[V_BASS], bass_note());
-        midi(0x92, bsv.note, 100);
-    }
     shim_rate = SHIM_HZ[((root + par[P_TRANSPOSE]) % 12 + 12) % 12] * 360.0f / OM_SR;
     om_root = (uint8_t)root;
     om_type = (uint8_t)type;
 }
 
-/* ---- the sequence: the loop and Markov */
+/* ---- the sequence: the loop and Markov's chord changes */
 static int drums_on, seq_on;
-static int rec_state, rec_pos, rec_len, rec_src;   /* recording: its step, its length, the source it records */
+static int rec_state, rec_pos, rec_len;           /* recording: its step, its length */
 static int rec_dub, rec_base;                      /* overdubbing (over the loop playing), from the loop's step */
 static int in_step;                                /* do_step() running: what happens is on its step */
-static int dub_root = -1, dub_type;                /* the chord overdubbed at this step */
+static int strike;                                 /* the next chord_eval strikes the chord (a button pressed) */
 static uint32_t gstep, loop_origin;               /* steps since the clock started; the loop's first */
 static int lp_valid;                              /* the loop's chord state known at its position */
 static int bars_left;                             /* Markov: bars to the next chord change */
 static int pulse;                                 /* MIDI clock, 0..5 within a step */
 
-static int loop_on(void) { return seq_on && par[P_BSRC] == SRC_LOOP && *loop_len && (rec_state != 2 || rec_dub); }
+static int loop_on(void) { return seq_on && *loop_len && (rec_state != 2 || rec_dub); }
 static int gen_on(void) { return seq_on && par[P_CHANGES] && !loop_on(); }
 
+/* ---- the loop: a byte a step, the chord: 0 none, 0x80 + root * 9 + type, 0xFF let go */
+static void rec_put(int code)
+{
+    int at;
+    if (rec_state != 2)
+        return;
+    /* in a step, on it; between steps (rec_pos is the next one by then), the nearer of the two */
+    at = in_step ? rec_pos : rec_pos - (pulse >= 3 ? 0 : 1);
+    if (at < 0)
+        at = 0;
+    if (at >= rec_len)
+        return;
+    loop[(at + rec_base) % rec_len] = (uint8_t)code;   /* (overdubbing: from where the loop was) */
+}
+
+/* the chord that sounds: a button's (or MIDI's) while one is held, else the loop's, else Markov's. Struck
+ * when it starts or changes, let go when it ends */
 static void chord_eval(void)
 {
-    int r = live_root, t = live_type, g = live_gate, gen = 0;
+    int r = live_root, t = live_type, g = live_gate, gen = 0, changed;
     if (!live_gate) {
         if (loop_on() && lp_root >= 0) {
             r = lp_root;
@@ -507,15 +458,19 @@ static void chord_eval(void)
             gen = 1;
         }
     }
-    if (r != root || t != type) {
+    changed = r != root || t != type;
+    if (changed) {
         root = r;
         type = t;
         retune();
-        if (rec_state == 2)
-            rec_put(0, g ? 0x80 + root * CH_NTYPES + type : 0xFF);
-    } else if (g != gate && rec_state == 2) {
-        rec_put(0, g ? 0x80 + root * CH_NTYPES + type : 0xFF);
     }
+    if (changed || g != gate)
+        rec_put(g ? 0x80 + root * CH_NTYPES + type : 0xFF);
+    if (g && (!gate || changed || strike))
+        chord_cmd('T');
+    else if (!g && gate)
+        chord_cmd('R');
+    strike = 0;
     gate = g;
     om_gen = (uint8_t)gen;
     om_gen_pad = (int8_t)(!live_gate && gen_on() ? gen_pad : -1);
@@ -574,109 +529,18 @@ static void markov_change(void)
     gen_pad = pick(w, OM_NPADS);
 }
 
-/* the bass's chain: root, fifth, third, octave, the leading tone, the sixth (seventh) */
-enum { MB_ROOT, MB_FIFTH, MB_THIRD, MB_OCT, MB_LEAD, MB_SIXTH, MB_N };
-static const float MB_T[MB_N][MB_N] = {
-    {2.0f, 4.0f, 2.0f, 2.5f, 1.0f, 1.0f}, {4.0f, 1.0f, 1.5f, 2.0f, 1.5f, 1.5f}, {2.0f, 3.5f, 0.5f, 1.0f, 1.0f, 1.0f},
-    {2.0f, 3.0f, 1.0f, 0.5f, 1.0f, 1.5f}, {6.0f, 1.0f, 0.5f, 0.5f, 0.2f, 0.3f}, {2.0f, 3.0f, 1.0f, 1.0f, 1.5f, 0.3f}};
-static int mb_state;
-static int mb_note(int s)
-{
-    const int8_t *t = OM_TYPE_TONES[type];
-    static const int8_t OFF[MB_N] = {0, 7, 0, 12, -1, 9};
-    int n = bass_n + OFF[s];
-    if (s == MB_THIRD)
-        n = bass_n + (t[1] < 7 ? t[1] : 4);
-    if (s == MB_SIXTH && (type == CH_7 || type == CH_M7))
-        n = bass_n + 10;
-    return n;
-}
-static void markov_bass(const om_rhythm_t *r, int st)
-{
-    float var = (float)par[P_BVAR] * 0.01f, chaos = (float)par[P_CHAOS] * 0.01f, w[MB_N];
-    char c = r->bass[st];
-    int half = r->len / 2, k;
-    if (c == 'R' || c == 'N') {
-        bass_play(c, 0);
-        rec_put(2, c == 'R' ? 1 : 2);
-        return;
-    }
-    if (c != 'T' && c != 'O') {                     /* no note in the rhythm: one now and then */
-        float p = (st & 1) ? var * 0.12f : var * 0.3f;
-        if (mv_randf() >= p)
-            return;
-        c = 'O';
-    }
-    for (k = 0; k < MB_N; k++)
-        w[k] = fm_powf(MB_T[mb_state][k] * (k == MB_OCT || k == MB_LEAD || k == MB_SIXTH ? 0.3f + var : 1.0f),
-                       1.6f - 1.4f * chaos);
-    mb_state = st % half == 0 && mv_randf() > chaos * 0.5f ? MB_ROOT : pick(w, MB_N);
-    bass_kind = 3;                                  /* (not a pattern's: retune leaves it) */
-    bass_play(c, mb_note(mb_state));
-    rec_put(2, mb_note(mb_state) | (c == 'O' ? 0x80 : 0));
-}
-
-/* the arp: a walk over the strings, steps of one or two most likely, going on the way it went */
-static int arp_s = 7, arp_dir = 1;
-static void markov_arp(int st)
-{
-    static const float JUMP[8] = {0.3f, 4.0f, 2.2f, 1.2f, 0.6f, 0.3f, 0.15f, 0.1f};
-    float dens = (float)par[P_ARP] * 0.01f, chaos = (float)par[P_CHAOS] * 0.01f, w[15], p;
-    int d, beat = st % 4 == 0, every = 1 << par[P_ARPRATE], lo = (OM_NSTR - par[P_ARPRANGE]) / 2,
-           hi = lo + par[P_ARPRANGE] - 1;                     /* the span: the middle strings */
-    if (st % every)
-        return;
-    p = dens * (beat ? 1.25f : (st & 1) ? 0.6f : 1.0f);
-    if (mv_randf() >= p)
-        return;
-    if (arp_s < lo || arp_s > hi)
-        arp_s = (lo + hi) / 2;
-    for (d = -7; d <= 7; d++) {
-        int s = arp_s + d, a = d < 0 ? -d : d;
-        float x = (s < lo || s > hi) ? 0.0f : JUMP[a] * ((d > 0) == (arp_dir > 0) && d ? 1.6f : 1.0f);
-        w[d + 7] = x > 0.0f ? fm_powf(x, 1.0f - 0.85f * chaos) : 0.0f;
-    }
-    d = pick(w, 15) - 7;
-    if (d)
-        arp_dir = d > 0 ? 1 : -1;
-    arp_s += d;
-    if (arp_s <= lo || arp_s >= hi)
-        arp_dir = -arp_dir;
-    {
-        int vel = (beat ? 110 : 70 + (int)(mv_randf() * 30.0f)) * par[P_HVEL] / 80;   /* (velocity 80: as is) */
-        strum(arp_s, vel > 127 ? 127 : vel);
-    }
-}
-
-/* ---- the loop: 3 bytes a step. [0] the chord: 0 none, 0x80 + root * 9 + type, 0xFF let go; [1] the
- * chord's pattern (T R O N, 0 none); [2] the bass: 0 none, a note (| 0x80 a one-shot), 1 release, 2 cut */
-static void rec_put(int what, int code)
-{
-    int at;
-    if (rec_state != 2)
-        return;
-    /* in a step, on it; between steps (rec_pos is the next one by then), the nearer of the two */
-    at = in_step ? rec_pos : rec_pos - (pulse >= 3 ? 0 : 1);
-    if (at < 0)
-        at = 0;
-    if (at >= rec_len)
-        return;
-    at = (at + rec_base) % rec_len;                /* (overdubbing: from where the loop was) */
-    loop[at * 3 + what] = (uint8_t)code;
-}
 static void rec_begin(void)
 {
     int i, bars = 1 << (par[P_BARS] & 3);
     rec_len = bars * (om_steps / 2);
     if (rec_len > OM_LOOP_MAX)
         rec_len = OM_LOOP_MAX;
-    for (i = 0; i < OM_LOOP_MAX * 3; i++)
+    for (i = 0; i < OM_LOOP_MAX; i++)
         loop[i] = 0;
     rec_pos = 0;
     rec_base = 0;
     rec_dub = 0;
     rec_state = 2;
-    rec_src = par[P_BSRC] == SRC_LOOP ? SRC_RHYTHM : par[P_BSRC];
     loop_origin = gstep;
     loop[0] = gate ? (uint8_t)(0x80 + root * CH_NTYPES + type) : 0xFF;
     om_rec_state = 2;
@@ -689,8 +553,6 @@ static void rec_end(int len)
     if (len > 0) {
         len = (len + half - 1) / half * half;      /* whole bars */
         *loop_len = (uint8_t)(len < rec_len ? len : rec_len);
-        par[P_BSRC] = SRC_LOOP;
-        om_bsrc = SRC_LOOP;
         lp_valid = 0;
     }
     rec_state = 0;
@@ -706,7 +568,7 @@ static void loop_scan(int pos)
     lp_root = -1;
     lp_gate = 0;
     for (i = 0; i < n; i++) {
-        int k = ((pos - i) % n + n) % n, c = loop[k * 3];
+        int k = ((pos - i) % n + n) % n, c = loop[k];
         if (c >= 0x80 && c != 0xFF) {
             lp_root = (c - 0x80) / CH_NTYPES;
             lp_type = (c - 0x80) % CH_NTYPES;
@@ -717,7 +579,7 @@ static void loop_scan(int pos)
             /* let go here: the chord before it, not sounding */
             for (; i < n; i++) {
                 k = ((pos - i) % n + n) % n;
-                c = loop[k * 3];
+                c = loop[k];
                 if (c >= 0x80 && c != 0xFF) {
                     lp_root = (c - 0x80) / CH_NTYPES;
                     lp_type = (c - 0x80) % CH_NTYPES;
@@ -731,46 +593,26 @@ static void loop_scan(int pos)
 
 static void loop_step(int pos)
 {
-    const uint8_t *e = &loop[pos * 3];
+    const uint8_t e = loop[pos];
     if (!lp_valid) {
         loop_scan(pos);
         lp_valid = 1;
-    } else if (e[0] >= 0x80) {
-        if (e[0] == 0xFF) {
+    } else if (e >= 0x80) {
+        if (e == 0xFF) {
             lp_gate = 0;
         } else {
-            lp_root = (e[0] - 0x80) / CH_NTYPES;
-            lp_type = (e[0] - 0x80) % CH_NTYPES;
+            lp_root = (e - 0x80) / CH_NTYPES;
+            lp_type = (e - 0x80) % CH_NTYPES;
             lp_gate = 1;
         }
     }
-    chord_eval();
-    if (rec_dub && rec_state == 2 && live_gate && (e[0] >= 0x80 || rec_pos == 0)) {
-        loop[pos * 3] = (uint8_t)(0x80 + root * CH_NTYPES + type);   /* overdubbing, a chord held: the loop's now */
-        dub_root = root;
-        dub_type = type;
-    }
-    if (e[1])
-        chord_cmd((char)e[1]);
-    if (e[2] == 1 || e[2] == 2) {
-        bass_play(e[2] == 1 ? 'R' : 'N', 0);
-    } else if (e[2]) {
-        int n = e[2] & 0x7F;
-        if (live_gate && lp_root >= 0) {           /* a chord held over the loop: the bass moves to it */
-            int d = ((root - lp_root) % 12 + 12) % 12;
-            n += d > 6 ? d - 12 : d;
-            if (rec_dub && rec_state == 2)         /* ... and, overdubbing, stays there */
-                loop[pos * 3 + 2] = (uint8_t)(n | (e[2] & 0x80));
-        }
-        bass_kind = 3;
-        bass_play(e[2] & 0x80 ? 'O' : 'T', n);
-    }
-    if (dub_root >= 0) {                           /* (the loop's chord from here on: the one written) */
-        lp_root = dub_root;
-        lp_type = dub_type;
+    if (rec_dub && rec_state == 2 && live_gate && (e >= 0x80 || rec_pos == 0)) {
+        loop[pos] = (uint8_t)(0x80 + live_root * CH_NTYPES + live_type);   /* overdubbing, a chord held: the loop's now */
+        lp_root = live_root;
+        lp_type = live_type;
         lp_gate = 1;
-        dub_root = -1;
     }
+    chord_eval();
 }
 
 /* ---- rhythm */
@@ -802,7 +644,7 @@ static void drums_hit(uint8_t d)
 static void do_step(void)
 {
     const om_rhythm_t *r = &OM_RHYTHM[rh];
-    int half = r->len / 2, src;
+    int half = r->len / 2;
     in_step = 1;
     if (step % half == 0) {                       /* a bar */
         if (rec_state == 1)
@@ -818,24 +660,12 @@ static void do_step(void)
             chord_eval();
         }
     }
-    src = rec_state == 2 ? rec_src : par[P_BSRC];
     if (drums_on)
         drums_hit(r->drum[step]);
-    if (seq_on) {
-        if (loop_on()) {
-            int pos = (int)((gstep - loop_origin) % *loop_len);
-            om_loop_pos = (uint8_t)pos;
-            loop_step(pos);
-        } else if (gate) {
-            if (src == SRC_MARKOV)
-                markov_bass(r, step);
-            else if (r->bass[step] != '-')
-                bass_cmd(r->bass[step], r->note[step]);
-            if (r->chord[step] != '-')
-                chord_rec(r->chord[step]);
-        }
-        if (par[P_ARP])
-            markov_arp(step);
+    if (loop_on()) {
+        int pos = (int)((gstep - loop_origin) % *loop_len);
+        om_loop_pos = (uint8_t)pos;
+        loop_step(pos);
     }
     if (rec_state == 2) {
         if (!rec_dub)
@@ -974,10 +804,8 @@ static void apply(int p, int v)
     case P_HCOLOR: h_color = (float)v * 0.01f; ver_h++; break;
     case P_HLEVEL: hvol = (float)v * 0.01f; break;
     case P_CTIMBRE: case P_CCOLOR: case P_CREL: ver_c++; break;
-    case P_BTIMBRE: case P_BCOLOR: case P_BREL: ver_b++; break;
     case P_HPOS: case P_LPGC: ver_h++; break;
     case P_CHORD: cvol = (float)v * 0.01f; break;
-    case P_BLEVEL: bvol = (float)v * 0.01f; break;
     case P_RHYVOL: rvol = (float)v * 0.01f; break;
     case P_REVERB: rsend = (float)v * 0.01f * (float)v * 0.01f; break;
     case P_CREV: csend = (float)v * 0.01f * (float)v * 0.01f; break;
@@ -1009,11 +837,6 @@ static void apply(int p, int v)
         if (!v)
             om_midi_out(0xB0, 123, 0);            /* all notes off, as it goes quiet */
         break;
-    case P_BSRC:
-        om_bsrc = (uint8_t)v;
-        lp_valid = 0;
-        chord_eval();
-        break;
     case P_CHANGES:
         if (!v)
             gen_pad = -1;
@@ -1036,7 +859,6 @@ static void quiet(void)
         hv_str[i] = -1;
     for (i = 0; i < OM_NCHORD; i++)
         chv[i].st = E_OFF;
-    bsv.st = E_OFF;
     for (i = 0; i < OM_NDRUM; i++)
         drum[i].on = 0;
     for (i = 0; i < 3; i++)
@@ -1098,10 +920,6 @@ static void seq_release(void)                    /* the sequence stopped: what i
 {
     gen_pad = -1;
     chord_eval();
-    if (!gate) {
-        chord_cmd('R');
-        bass_play('R', 0);
-    }
 }
 
 static void play_stop(void)
@@ -1170,19 +988,8 @@ static void drain(void)
             break;
         case C_GATE:
             live_gate = a;
-            if (!seq_on) {                          /* by hand: the chord sounds while the pad is down */
-                chord_eval();
-                chord_cmd(a ? 'T' : 'R');
-                bass_kind = 0;
-                bass_cmd(a ? 'T' : 'R', 'R');
-            } else {
-                chord_eval();
-                if (!gate) {
-                    chord_rec('R');
-                    bass_play('R', 0);
-                    rec_put(2, 1);
-                }
-            }
+            strike = a;                             /* a button pressed: its chord struck, even the same one */
+            chord_eval();
             break;
         case C_STRUM:
             if (a < OM_NSTR)
@@ -1222,22 +1029,8 @@ static void drain(void)
                 rec_state = 0;
                 om_rec_state = 0;
                 *loop_len = 0;
-                if (par[P_BSRC] == SRC_LOOP) {
-                    par[P_BSRC] = SRC_RHYTHM;
-                    om_bsrc = SRC_RHYTHM;
-                }
                 om_loop_done++;
                 chord_eval();
-            }
-            break;
-        case C_BNOTE:
-            if (b) {
-                bass_kind = 3;
-                bass_play('T', a);
-                rec_put(2, a & 0x7F);
-            } else if (bsv.note == a) {
-                bass_play('R', 0);
-                rec_put(2, 1);
             }
             break;
         case C_RESTART:
@@ -1376,7 +1169,7 @@ static void render_strings(uint32_t n)
     }
 }
 
-static float env_step(cv_t *v, int bass)
+static float env_step(cv_t *v)
 {
     switch (v->st) {
     case E_DEC:
@@ -1386,15 +1179,8 @@ static float env_step(cv_t *v, int bass)
             v->st = E_SUS;
         }
         break;
-    case E_BDEC:
-        v->v -= (1.0f / OM_SR) / 1.222f;
-        if (v->v <= 0.95f) {
-            v->v = 0.95f;
-            v->st = E_REL;
-        }
-        break;
     case E_REL:
-        v->v -= bass ? (1.0f / OM_SR) / 0.333f * (0.5f + v->v) : (1.0f / OM_SR) / 0.18f;
+        v->v -= (1.0f / OM_SR) / 0.18f;
         break;
     case E_CUT:
         v->v -= (1.0f / OM_SR) / 0.004f;
@@ -1406,37 +1192,37 @@ static float env_step(cv_t *v, int bass)
         v->v = 0.0f;
         if (v->g < 1e-4f) {
             v->st = E_OFF;
-            midi(bass ? 0x82 : 0x81, v->note, 0);
+            midi(0x81, v->note, 0);
         }
     }
     return v->v;
 }
 
-/* a chord or bass voice of a model: its envelope steps along (for its state and the screen), the
- * voice follows it: held (dust, the LPG open) while it sustains, damped when let go, faded when cut */
-static void render_held(cv_t *v, mv_t *m, int bass, float gain, float sendg, uint32_t n)
+/* a chord voice of a model: its envelope steps along (for its state and the screen), the voice follows
+ * it: held (dust, the LPG open) while it sustains, damped when let go, faded when cut */
+static void render_held(cv_t *v, mv_t *m, float gain, float sendg, uint32_t n)
 {
     uint32_t j;
     int was = v->st;
     float c0 = v->cut, gate;
     if (v->st != E_OFF)
         for (j = 0; j < n && v->st != E_OFF; j++) {
-            float e = env_step(v, bass);
+            float e = env_step(v);
             v->g += 0.05f * (e - v->g);
             if (v->st == E_CUT)
                 v->cut = fm_maxf(v->cut - 1.0f / 176.0f, 0.0f);
         }
     if (!m->on)
         return;
-    if (m->ver != (bass ? ver_b : ver_c) || ((v->st == E_REL || v->st == E_OFF) && was != v->st)) {
-        held_par(m, bass, v->st == E_REL || v->st == E_OFF);
-        mv_coef(m, !bass, bass ? 12 : 8);
-        m->ver = bass ? ver_b : ver_c;
+    if (m->ver != ver_c || ((v->st == E_REL || v->st == E_OFF) && was != v->st)) {
+        held_par(m, v->st == E_REL || v->st == E_OFF);
+        mv_coef(m, 1, 8);
+        m->ver = ver_c;
     }
     gate = v->st == E_OFF || v->st == E_REL || v->st == E_CUT ? 0.0f : v->g;
     for (j = 0; j < n; j++)
         vbuf[j] = 0.0f;
-    if (!mv_render(m, gate * (bass ? 1.0f : 0.9f), bass ? 0.0f : gate, gain * c0, gain * v->cut, vbuf, n) || v->cut <= 0.0f) {
+    if (!mv_render(m, gate * 0.9f, gate, gain * c0, gain * v->cut, vbuf, n) || v->cut <= 0.0f) {
         m->on = 0;
         return;
     }
@@ -1451,15 +1237,15 @@ static void render_chord(uint32_t n)
 {
     int i;
     uint32_t j;
-    const float gc = 0.4f * cvol * 0.7071f, gb = bvol * 0.7071f;
+    const float gc = 0.4f * cvol * 0.7071f;
     float lvl = 0.0f;
     for (i = 0; i < OM_NCHORD; i++) {
         cv_t *v = &chv[i];
         if (v->model != M_OM84) {
-            render_held(v, &mv[V_CHORD + i], 0, gc * G_HELD[v->model], csend, n);
+            render_held(v, &mv[V_CHORD + i], gc * G_HELD[v->model], csend, n);
         } else if (v->st != E_OFF) {
             for (j = 0; j < n && v->st != E_OFF; j++) {
-                float e = env_step(v, 0), o;
+                float e = env_step(v), o;
                 v->g += 0.05f * (e - v->g);
                 o = wave(OM_WAVE_CHORD, v->pos) * v->g * gc;
                 mixl[j] += o;
@@ -1471,21 +1257,6 @@ static void render_chord(uint32_t n)
         lvl = fm_maxf(lvl, v->v);
     }
     om_chord_level = lvl;
-    if (bsv.model != M_OM84) {
-        render_held(&bsv, &mv[V_BASS], 1, gb * G_HELD[bsv.model], csend * 0.5f, n);
-    } else if (bsv.st != E_OFF) {
-        cv_t *v = &bsv;
-        for (j = 0; j < n && v->st != E_OFF; j++) {
-            float e = env_step(v, 1), o;
-            v->g += 0.05f * (e - v->g);
-            o = (wave(OM_WAVE_BASS_BASE, v->pos) + wave(OM_WAVE_BASS_MOD, v->pos) * (1.0f - e * e)) * v->g * gb;
-            mixl[j] += o;
-            mixr[j] += o;
-            send[j] += o * csend * 0.5f;               /* a little: a wet bass muddies */
-            v->pos = adv(v->pos, v->inc);
-        }
-    }
-    om_bass_level = bsv.st != E_OFF ? bsv.v : 0.0f;
 }
 
 static void render_drums(uint32_t n)

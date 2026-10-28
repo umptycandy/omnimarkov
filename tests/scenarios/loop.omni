@@ -21,8 +21,8 @@ expect playing 0
 # a loop of one bar (Rhythm page, GLO: Bars 1): REC starts the sequence, C for half the bar then A minor
 tap GLO
 expect view 2
-spin K4 -1
-expect par25 0
+spin K3 -1
+expect par24 0
 key b1 down
 tap REC
 expect rec 2
@@ -36,11 +36,11 @@ wait 900
 key b4 up
 expect rec 0
 expect looplen 16
-expect par7 1
-# played back: no button held, the loop's chords
+# played back: no button held, the loop's chords, held
 wait 400
 expect chordroot 0
 expect gen 1
+expect chord_level >50
 shot loop.png
 wait 1000
 expect chordroot 9
@@ -51,7 +51,6 @@ expect dirty 0
 reboot
 wait 100
 expect looplen 16
-expect par7 1
 # playing again (from the top: C)
 tap SEQ
 wait 200
@@ -64,10 +63,9 @@ wait 1100
 release REC
 wait 20
 expect looplen 0
-expect par7 0
 expect rec 0
-# the voices: the harp's model on the Play page (KNOB 1, the page after a restart), the chord's and bass's
-# on Voices (FX twice)
+# the voices: the harp's model on the Play page (KNOB 1, the page after a restart), the chord's on Voices
+# (FX twice)
 expect view 0
 spin K1 1
 expect par16 2
@@ -82,13 +80,10 @@ tap FX
 tap FX
 expect view 6
 spin K1 2
-spin K3 1
 expect par20 4
-expect par22 4
 key b2 down
 wait 300
 expect chord_level >50
-expect bass_level >50
 key b2 up
 wait 50
 shot voices.png
@@ -102,13 +97,12 @@ expect learn26 1
 tap SEL
 tap SEL
 expect view 3
-spin K2 1
-spin K1 60
-expect par27 1
-expect par26 60
+spin K1 1
+expect par25 1
 tap SEQ
 wait 6000
 expect gen 1
+expect chord_level >50
 shot markov.png
 tap SEQ
 wait 50

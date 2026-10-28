@@ -43,8 +43,7 @@ static void project_upgrade(const project_v2_t *o)
         proj.par[i] = o->par[i];
     if (o->format == 1u)                         /* 0.1: that slot was Lo-fi (0 / 1) */
         proj.par[P_CREV] = om_param_info(P_CREV)->def;
-    proj.par[P_BSRC] = SRC_RHYTHM;               /* was Auto bass (0 / 1): the SEQ track is that now */
-    proj.par[P_BLEVEL] = o->par[P_CHORD];        /* one level was the chord's and the bass's */
+    proj.par[P_SWING] = om_param_info(P_SWING)->def;   /* that slot was Auto bass (0 / 1) */
     memcpy(proj.pad_root, o->pad_root, NPADS);
     memcpy(proj.pad_type, o->pad_type, NPADS);
     proj.hold = o->hold;
@@ -67,11 +66,9 @@ static int project_valid(void)
             return 0;
     if (proj.loop_len > OM_LOOP_MAX)
         return 0;
-    for (i = 0; i < OM_LOOP_MAX; i++) {          /* a chord code, a pattern command, a bass note or event */
-        uint8_t c = proj.loop[3 * i], k = proj.loop[3 * i + 1];
+    for (i = 0; i < OM_LOOP_MAX; i++) {          /* a chord code, a let-go, or nothing */
+        uint8_t c = proj.loop[i];
         if ((c && c < 0x80u) || (c >= 0x80u + 12u * CH_NTYPES && c != 0xFFu))
-            return 0;
-        if (k && k != 'T' && k != 'R' && k != 'O' && k != 'N')
             return 0;
     }
     return 1;

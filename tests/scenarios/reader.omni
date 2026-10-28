@@ -7,7 +7,7 @@ said Play page: Model String, Bright 50, Structure 40, Sustain 50. Chord C major
 # a page settles before it is said
 tap GLO
 wait 300
-said Rhythm page: Rhythm Rock 1, Tempo 116, Bass Rhythm, Bars 2 bars
+said Rhythm page: Rhythm Rock 1, Tempo 116, Bars 2 bars, Swing 0%
 tap FX
 tap GLO
 tap GLO

@@ -10,8 +10,8 @@
 #define OM_VERSION "DEV"
 #endif
 #define PROJ_MAGIC 0x494E4D4Fu           /* "OMNI" */
-#define PROJ_FORMAT 4u                   /* 4: the voices, the tracks, the loop, Markov, SHIFT's layer (0.3); 1 and 2
-                                          * load (3 was a development format: its projects start afresh) */
+#define PROJ_FORMAT 5u                   /* 5: the voices, the tracks, the chord loop, Markov, SHIFT (0.3); 1 and 2
+                                          * load (3 and 4 were development formats: their projects start afresh) */
 #define NPADS OM_NPADS                   /* the black keys: chord buttons */
 
 typedef struct {
@@ -23,7 +23,7 @@ typedef struct {
     uint8_t leds;                        /* lights: 0 off, 1 keys and the buttons' glow, 2 keys only */
     uint8_t loop_len;                    /* the recorded loop's steps, 0: none */
     uint8_t learn[NPADS * NPADS];        /* Markov: the chord changes played, [from][to], counted */
-    uint8_t loop[OM_LOOP_MAX * 3];       /* the loop, 3 bytes a step (dsp/omni.c) */
+    uint8_t loop[OM_LOOP_MAX];           /* the loop, the chord a step (dsp/omni.c) */
     uint8_t rsv[16];                     /* room to grow: an older, shorter project loads (zeros here) */
 } project_t;
 

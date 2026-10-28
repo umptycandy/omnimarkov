@@ -423,8 +423,6 @@ static int expect(const char *what, const char *val)
         got = (int)midi_out_count;
     else if (!strcmp(what, "chord_level"))
         got = (int)(om_chord_level * 100.0f);
-    else if (!strcmp(what, "bass_level"))
-        got = (int)(om_bass_level * 100.0f);
     else if (!strcmp(what, "drums"))
         got = om_drums_on;
     else if (!strcmp(what, "seq"))
@@ -610,7 +608,7 @@ int main(int argc, char **argv)
             for (i = 0; i < P_NPARAMS_V2; i++)
                 o.par[i] = om_param_info(i)->def;
             o.par[P_CHORD] = 40;
-            o.par[P_BSRC] = 1;                             /* Auto bass on */
+            o.par[7] = 1;                                  /* Auto bass on (that slot is Swing now) */
             for (i = 0; i < NPADS; i++) {
                 o.pad_root[i] = PAD_ROOT[i];
                 o.pad_type[i] = PAD_TYPE[i];

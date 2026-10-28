@@ -2,21 +2,23 @@
 /* The instrument (dsp/omni.c) on its own: the strum plate's voicing against the OM-108 owner's
  * manual (p.49), the chord and bass registers, envelopes that end, the rhythm's timing, and an output
  * that stays finite and inside full scale with everything playing at once. Then the voices (each model
- * sounds and ends), the two tracks, a loop recorded and played back, and the Markov chains. */
+ * sounds and ends), the two tracks, a loop of chords recorded and played back, Markov's chord changes,
+ * and that nothing ever plays a bass or a melody. */
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "omni.h"
 
-static int bad, midi_n, bass_on_n, last_bass = -1;
+static int bad, midi_n, bass_on_n, chord_on_n;
 void om_midi_out(uint32_t st, uint32_t d1, uint32_t d2)
 {
+    (void)d1;
     (void)d2;
     midi_n++;
-    if (st == 0x92) {                                  /* the bass's notes */
+    if (st == 0x92)                                    /* channel 3 was the bass's: never now */
         bass_on_n++;
-        last_bass = (int)d1;
-    }
+    if (st == 0x91)                                    /* the chord's notes */
+        chord_on_n++;
 }
 
 static void check(const char *what, int ok)
@@ -90,10 +92,10 @@ int main(void)
 
     om_gate(1);
     run(10);
-    check("a chord button held: the chord and its bass sound", om_chord_level > 0.9f && om_bass_level > 0.9f);
+    check("a chord button held: the chord sounds", om_chord_level > 0.9f);
     om_gate(0);
     run(44100 / 256);
-    check("let go: both end within 1 s", om_chord_level == 0.0f && om_bass_level == 0.0f);
+    check("let go: it ends within 1 s", om_chord_level == 0.0f);
 
     {   /* the rhythm: Rock 1 at 120 BPM is a 16th every 5512.5 samples; 32 steps in 4 s */
         int n = 0, last = -1, b;
@@ -173,14 +175,13 @@ int main(void)
         }
         check("plate at Space 100: the tail is 60 dB down within 20 s", e < e0 * 1e-6);
     }
-    {   /* every voice: a pluck sounds and ends; a held chord and bass sound and end when let go */
+    {   /* every voice: a pluck sounds and ends; a held chord sounds and ends when let go */
         int m;
         for (m = 0; m < OM_NMODELS; m++) {
             char what[80];
             om_init();
             om_set(P_HMODEL, m);
             om_set(P_CMODEL, m);
-            om_set(P_BMODEL, m);
             om_set(P_SUSTAIN, 30);
             om_chord(0, CH_MAJ);
             om_strum(6);
@@ -195,14 +196,14 @@ int main(void)
             om_gate(1);
             peak = 0.0f;
             run(44100 / 256);
-            snprintf(what, sizeof what, "%s: a held chord and bass sound", OM_MODEL_NAME[m]);
-            check(what, om_chord_level > 0.9f && om_bass_level > 0.9f && peak > 0.05f);
+            snprintf(what, sizeof what, "%s: a held chord sounds", OM_MODEL_NAME[m]);
+            check(what, om_chord_level > 0.9f && peak > 0.05f);
             om_gate(0);
             run(44100 / 256 * 3);
             peak = 0.0f;
             run(44100 / 256);
             snprintf(what, sizeof what, "%s: let go, quiet within 3 s; all finite", OM_MODEL_NAME[m]);
-            check(what, om_chord_level == 0.0f && om_bass_level == 0.0f && peak < 0.01f && finite_ok);
+            check(what, om_chord_level == 0.0f && peak < 0.01f && finite_ok);
         }
     }
     {   /* a strum across all sixteen strings with the pool at its smallest: the newest ring */
@@ -237,17 +238,17 @@ int main(void)
         check("SEQ off: the drums go on", om_playing && om_drums_on && !om_seq_on);
         om_gate(1);
         run(10);
-        check("... a chord held by hand sounds (no pattern)", om_chord_level > 0.9f && om_bass_level > 0.9f);
+        check("... a chord held by hand sounds", om_chord_level > 0.9f);
         om_gate(0);
         om_play(0);
         run(2);
         check("both off: the clock stops", !om_playing);
     }
     {   /* a loop: one bar (16 steps at 120: 2 s) of C, then Am from the bar's middle; played back with no
-         * button held; a D held over it moves its bass up a tone */
-        static uint8_t lp[OM_LOOP_MAX * 3], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
-                                                ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
-        int b, seen_c = 0, seen_a = 0, bass_c = 0;
+         * button held, the chords held in turn; a D held over it sounds instead; overdubbed, the loop is D */
+        static uint8_t lp[OM_LOOP_MAX], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
+                                         ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
+        int b, seen_c = 0, seen_a = 0, held = 1;
         om_init();
         om_link(rt, ty, lr, lp, &ll);
         om_set(P_TEMPO, 120);
@@ -259,60 +260,54 @@ int main(void)
         check("REC, stopped: the sequence starts, recording", om_seq_on && om_rec_state == 2);
         run(44100 / 256);                               /* 1 s: half the bar */
         om_chord(9, CH_MIN);
+        om_gate(1);
         run(44100 / 256 + 10);
-        check("after the bar: a loop of 16 steps, the bass's source LOOP", ll == 16 && om_bsrc == SRC_LOOP &&
-              om_rec_state == 0);
+        check("after the bar: a loop of 16 steps", ll == 16 && om_rec_state == 0);
         om_gate(0);
-        bass_on_n = 0;
+        run(4);
         for (b = 0; b < 2 * 44100 / 256; b++) {
             run(1);
             seen_c |= om_root == 0 && om_loop_pos < 7;
             seen_a |= om_root == 9 && om_loop_pos >= 9;
-            if (om_root == 0 && last_bass >= 0 && last_bass % 12 == 0)
-                bass_c = 1;
+            held &= om_chord_level > 0.5f;
         }
         check("played back: C, then Am, with no button held", seen_c && seen_a && om_gen);
-        check("... and its bass (Rock 1: three notes a bar)", bass_on_n >= 3 && bass_c);
+        check("... each chord held all the while", held);
         om_chord(2, CH_MAJ);
         om_gate(1);
-        last_bass = -1;
-        for (b = 0; b < 44100 / 256 && last_bass < 0; b++)
-            run(1);
-        check("a D held over the loop: its bass moves to D", last_bass >= 0 && last_bass % 12 == 2);
-        om_rec(OM_REC_OVERDUB);                         /* overdub, D held for a whole pass: the loop is in D */
+        run(10);
+        check("a D held over the loop sounds instead", om_root == 2 && om_chord_level > 0.5f);
+        om_rec(OM_REC_OVERDUB);                         /* overdub, D held for a whole pass: the loop is D */
         run(2);
         check("OVERDUB: recording over the loop playing", om_rec_state == 3);
         for (b = 0; b < 3 * 44100 / 256 && om_rec_state; b++)
             run(1);
-        check("... once round, then it plays", om_rec_state == 0 && ll == 16 && om_bsrc == SRC_LOOP);
+        check("... once round, then it plays", om_rec_state == 0 && ll == 16);
         om_gate(0);
         {
-            int all_d = 1, n = 0;
+            int all_d = 1;
             for (b = 0; b < 2 * 44100 / 256; b++) {
-                int lb = last_bass;
                 run(1);
-                all_d &= om_root == 2;
-                if (last_bass != lb && (om_loop_pos <= 1 || (om_loop_pos >= 6 && om_loop_pos <= 7))) {
-                    n++;
-                    all_d &= last_bass % 12 == 2;
-                }
+                all_d &= om_root == 2 && om_chord_level > 0.5f;
             }
-            check("... no button held: the loop is in D now, chord and bass", n > 0 && all_d);
+            check("... no button held: the loop is D now, held", all_d);
         }
         om_restart();
         run(1);
         check("restart: the top of the loop", om_loop_pos <= 1);
         om_rec(OM_REC_CLEAR);
         run(2);
-        check("REC held (clear): no loop, the source back to RHYTHM", ll == 0 && om_bsrc == SRC_RHYTHM);
+        check("REC held (clear): no loop", ll == 0);
         om_seq(0);
+        run(10);
+        check("SEQ off: the chord it held lets go", om_chord_level < 0.9f);
         run(2);
     }
     {   /* Markov: the probabilities, what is learnt, and the changes it makes */
-        static uint8_t lp[OM_LOOP_MAX * 3], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
-                                                ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
+        static uint8_t lp[OM_LOOP_MAX], ll, rt[OM_NPADS] = {5, 0, 7, 2, 9, 4, 7, 4, 2, 10, 9},
+                                         ty[OM_NPADS] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 2}, lr[OM_NPADS * OM_NPADS];
         float p[OM_NPADS], q2[OM_NPADS], sum = 0.0f;
-        int i, b, changes = 0, last = -1, s, plucks = 0;
+        int i, b, changes = 0, last = -1, s, plucks = 0, held = 1;
         om_init();
         om_link(rt, ty, lr, lp, &ll);
         om_markov_probs(1, 30, p);
@@ -329,37 +324,26 @@ int main(void)
         lr[1 * OM_NPADS + 10] = 0;
         om_set(P_TEMPO, 240);
         om_set(P_CHANGES, 1);
-        om_set(P_BSRC, SRC_MARKOV);
-        om_set(P_ARP, 100);
         om_seq(1);
-        bass_on_n = 0;
+        run(10);
         for (b = 0; b < 8 * 44100 / 256; b++) {
             run(1);
             if (om_gen_pad != last) {
                 changes++;
                 last = om_gen_pad;
             }
+            held &= om_chord_level > 0.5f;
             for (s = 0; s < OM_NSTR; s++)
-                plucks += om_str_level[s] > 0.5f;
+                plucks += om_str_level[s] > 0.0f;
         }
         check("CHANGES every bar, no button held: the chord changes", changes >= 6 && om_gen);
-        check("... the Markov bass plays", bass_on_n > 10);
-        check("... the arp plucks the strings", plucks > 100);
-        om_set(P_ARPRANGE, 4);                          /* the arp's span: the middle four strings */
-        om_set(P_HMODEL, M_ANALOG);
-        run(44100 / 256 * 2);
-        plucks = 0;
-        for (b = 0; b < 2 * 44100 / 256; b++) {
-            run(1);
-            for (s = 0; s < OM_NSTR; s++)
-                if (om_str_level[s] > 0.9f && (s < 6 || s > 9))
-                    plucks++;
-        }
-        check("Arp range 4: only strings 6..9 plucked", plucks == 0);
+        check("... each held", held);
+        check("... and nothing else plays: no strings plucked by themselves", plucks == 0);
         om_seq(0);
         run(2);
         check("SEQ off: Markov stops", om_gen_pad < 0 && !om_gen);
     }
+    check("no bass, ever: nothing on channel 3", bass_on_n == 0 && chord_on_n > 10);
     check("MIDI out sent notes", midi_n > 100);
     om_set(P_MIDI, 0);
     run(1);
